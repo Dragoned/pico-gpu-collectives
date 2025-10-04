@@ -647,5 +647,15 @@ static inline uint32_t get_nu(uint32_t rank, uint32_t size){
   }
 }
 
+unsigned int floor_power_of_two(unsigned int n) {
+    if (n == 0) return 0;
+    n |= (n >> 1);
+    n |= (n >> 2);
+    n |= (n >> 4);
+    n |= (n >> 8);
+    n |= (n >> 16);
+    return n - (n >> 1);
+}
+
 #endif // LIBPICO_UTILS_H
 
