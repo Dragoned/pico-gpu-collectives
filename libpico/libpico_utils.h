@@ -647,7 +647,19 @@ static inline uint32_t get_nu(uint32_t rank, uint32_t size){
   }
 }
 
-unsigned int floor_power_of_two(unsigned int n) {
+// return the amount of extra data to be shered
+static inline int remining_data_to_share(int remainig_node, int node_rank, int comm_dist)
+{
+  int shared_size = remainig_node - node_rank;
+  if (shared_size >= comm_dist)
+  {
+    return comm_dist;
+  }
+  return shared_size;
+}
+
+// round the number to the smaller nearest power of tow
+static inline unsigned int floor_power_of_two(unsigned int n) {
     if (n == 0) return 0;
     n |= (n >> 1);
     n |= (n >> 2);

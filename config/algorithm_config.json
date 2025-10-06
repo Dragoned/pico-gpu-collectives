@@ -1067,6 +1067,31 @@
           "external"
         ]
       },
+      "recursive_doubling_nontowpower_over": {
+        "desc": "libpico external recursive doubling algorithm. Works with non power of tow",
+        "library": {
+          "libpico": "1.0.0"
+        },
+        "cvar": "auto",
+        "dynamic_rule": 0,
+        "constraints": [
+          {
+            "key": "count",
+            "conditions": [
+              {
+                "operator": ">=",
+                "value": "comm_sz"
+              }
+            ]
+          }
+        ],
+        "tags": [
+          "recursive_doubling",
+          "small_sizes",
+          "medium_sizes",
+          "external"
+        ]
+      },
       "recursive_doubling_over": {
         "desc": "libpico external recursive doubling algorithm. Works only on power of 2 processes. Comm_sz must be greater or equal to count.",
         "library": {

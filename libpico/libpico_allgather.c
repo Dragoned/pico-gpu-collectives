@@ -52,10 +52,11 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
   upperblockdata = rank;
 
   // bind remaining rank to roank in sub group
-  if (rank > sub_group_size)
+  if (rank >= sub_group_size)
   {
-    tempsend = (char *)sbuf + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
-    err = MPI_Send(tempsend, rcount, sdtype, rank - sub_group_size, 0, comm);
+
+    tempsend = (char *)rbuf + (ptrdiff_t)rank * (ptrdiff_t)scount * rext;
+    err = MPI_Send(tempsend, scount, sdtype, rank - sub_group_size, 0, comm);
 
     if (MPI_SUCCESS != err)
     {
@@ -65,7 +66,8 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
   }
   else if (rank < remaining_node)
   {
-    temprecv = (char *)rbuf + (ptrdiff_t)sub_group_size + rank * (ptrdiff_t)rcount * rext;
+
+    temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + rank) * (ptrdiff_t)rcount * rext;
     err = MPI_Recv(temprecv, rcount, sdtype, sub_group_size + rank, 0, comm, MPI_STATUS_IGNORE);
 
     if (MPI_SUCCESS != err)
@@ -77,90 +79,95 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
     upperblockdata = sub_group_size + rank;
   }
 
-  // perform exchange in sub group
-  for (distance = 0x1; distance < size; distance <<= 1)
+  if (rank < sub_group_size)
   {
-    peer = rank ^ distance;
-
-    if (rank < peer)
+    // perform exchange in sub group
+    for (distance = 0x1; distance < sub_group_size; distance <<= 1)
     {
-      tempsend = (char *)rbuf + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
-      temprecv = (char *)rbuf + (ptrdiff_t)(lowerblokdata + distance) * (ptrdiff_t)rcount * rext;
-    }
-    else
-    {
-      tempsend = (char *)rbuf + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
-      temprecv = (char *)rbuf + (ptrdiff_t)(lowerblokdata - distance) * (ptrdiff_t)rcount * rext;
-      lowerblokdata -= distance;
-    }
+      peer = rank ^ distance;
 
-    /* Sendreceive */
-    err = MPI_Sendrecv(tempsend, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype, peer, 0,
-                       temprecv, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype,
-                       peer, 0, comm, MPI_STATUS_IGNORE);
-    if (MPI_SUCCESS != err)
-    {
-      line = __LINE__;
-      goto err_hndl;
-    }
-
-    // calc first node of the sub group of current e peer node
-    peergroup = peer ^ ~(distance - 1);
-    nodegroup = rank ^ ~(distance - 1);
-
-    // send and recive extra data
-    if (peergroup < remaining_node && nodegroup < remaining_node)
-    {
-      tempsend = (char *)rbuf + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
-      temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
-      if (peergroup < rank)
+      if (rank < peer)
       {
-        upperblockdata = sub_group_size + peergroup;
+        tempsend = (char *)rbuf + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
+        temprecv = (char *)rbuf + (ptrdiff_t)(lowerblokdata + distance) * (ptrdiff_t)rcount * rext;
+      }
+      else
+      {
+        tempsend = (char *)rbuf + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
+        temprecv = (char *)rbuf + (ptrdiff_t)(lowerblokdata - distance) * (ptrdiff_t)rcount * rext;
+        lowerblokdata -= distance;
       }
 
-      err = MPI_Sendrecv(tempsend, (ptrdiff_t)remining_data_to_share(remaining_node, nodegroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0,
-                         temprecv, (ptrdiff_t)remining_data_to_share(remaining_node, peergroup, distance) * (ptrdiff_t)rcount, rdtype,
+      /* Sendreceive */
+      err = MPI_Sendrecv(tempsend, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype, peer, 0,
+                         temprecv, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype,
                          peer, 0, comm, MPI_STATUS_IGNORE);
       if (MPI_SUCCESS != err)
       {
         line = __LINE__;
         goto err_hndl;
       }
-    }
-    // send extra data
-    else if (nodegroup < remaining_node)
-    {
-      tempsend = (char *)rbuf + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
-      err = MPI_Send(tempsend, (ptrdiff_t)remining_data_to_share(remaining_node, nodegroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0, comm);
-      if (MPI_SUCCESS != err)
-      {
-        line = __LINE__;
-        goto err_hndl;
-      }
-    }
-    // recive extra data
-    else if (peergroup < remaining_node)
-    {
-      temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
-      if (peergroup < rank)
-      {
-        upperblockdata = sub_group_size + peergroup;
-      }
 
-      err = MPI_Recv(temprecv, (ptrdiff_t)remining_data_to_share(remaining_node, peergroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0, comm, MPI_STATUS_IGNORE);
-      if (MPI_SUCCESS != err)
+      // calc first node of the sub group of current e peer node
+      peergroup = peer & ~(distance - 1);
+      nodegroup = rank & ~(distance - 1);
+
+      // send and recive extra data
+      if (peergroup < remaining_node && nodegroup < remaining_node)
       {
-        line = __LINE__;
-        goto err_hndl;
+        tempsend = (char *)rbuf + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
+        temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
+        if (peergroup < rank)
+        {
+          upperblockdata = sub_group_size + peergroup;
+        }
+
+        err = MPI_Sendrecv(tempsend, (ptrdiff_t)remining_data_to_share(remaining_node, nodegroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0,
+                           temprecv, (ptrdiff_t)remining_data_to_share(remaining_node, peergroup, distance) * (ptrdiff_t)rcount, rdtype,
+                           peer, 0, comm, MPI_STATUS_IGNORE);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
+      }
+      // send extra data
+      else if (nodegroup < remaining_node)
+      {
+        tempsend = (char *)rbuf + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
+        err = MPI_Send(tempsend, (ptrdiff_t)remining_data_to_share(remaining_node, nodegroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0, comm);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
+      }
+      // recive extra data
+      else if (peergroup < remaining_node)
+      {
+        temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
+        if (peergroup < rank)
+        {
+          upperblockdata = sub_group_size + peergroup;
+        }
+
+        err = MPI_Recv(temprecv, (ptrdiff_t)remining_data_to_share(remaining_node, peergroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0, comm, MPI_STATUS_IGNORE);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
       }
     }
   }
 
   // return value to excluded rank
-  if (rank > sub_group_size)
+  if (rank >= sub_group_size)
   {
+    peer = rank - sub_group_size;
+
     // first blok
-    err = MPI_Recv(rbuf, (ptrdiff_t)rank * rcount, sdtype, rank - sub_group_size, 0, comm, MPI_STATUS_IGNORE);
+    err = MPI_Recv(rbuf, (ptrdiff_t)rank * rcount, sdtype, peer, 0, comm, MPI_STATUS_IGNORE);
     if (MPI_SUCCESS != err)
     {
       line = __LINE__;
@@ -168,10 +175,10 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
     }
 
     // second block edge case for the last rank
-    if ((size - rank - 1) * rcount > 0)
+    if (size - (rank + 1) > 0)
     {
       temprecv = (char *)rbuf + (ptrdiff_t)(rank + 1) * (ptrdiff_t)rcount * rext;
-      err = MPI_Recv(temprecv, (ptrdiff_t)(size - rank - 1) * rcount, sdtype, rank - sub_group_size, 0, comm, MPI_STATUS_IGNORE);
+      err = MPI_Recv(temprecv, (ptrdiff_t)(size - (rank + 1)) * rcount, sdtype, peer, 0, comm, MPI_STATUS_IGNORE);
 
       if (MPI_SUCCESS != err)
       {
@@ -182,8 +189,9 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
   }
   else if (rank < remaining_node)
   {
+    peer = rank + sub_group_size;
     // first block
-    err = MPI_Send(sbuf, (ptrdiff_t)(rank + sub_group_size) * rcount, sdtype, rank + sub_group_size, 0, comm);
+    err = MPI_Send(rbuf, (ptrdiff_t)peer * rcount, sdtype, peer, 0, comm);
     if (MPI_SUCCESS != err)
     {
       line = __LINE__;
@@ -191,10 +199,10 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
     }
 
     // second block edge case for the last rank
-    if (size - (rank + sub_group_size + 1) > 0)
+    if (size - (peer + 1) > 0)
     {
-      tempsend = (char *)rbuf + (ptrdiff_t)(rank + sub_group_size + 1) * (ptrdiff_t)rcount * rext;
-      err = MPI_Send(tempsend, (ptrdiff_t)(size - (rank + sub_group_size + 1)) * rcount, sdtype, rank + sub_group_size, 0, comm);
+      tempsend = (char *)rbuf + (ptrdiff_t)(peer + 1) * (ptrdiff_t)rcount * rext;
+      err = MPI_Send(tempsend, (ptrdiff_t)(size - (peer + 1)) * rcount, sdtype, peer, 0, comm);
 
       if (MPI_SUCCESS != err)
       {
@@ -209,17 +217,6 @@ err_hndl:
   BINE_DEBUG_PRINT("\n%s:%4d\tRank %d Error occurred %d\n\n", __FILE__, line, rank, err);
   (void)line; // silence compiler warning
   return err;
-}
-
-// return the amount of extra data to be shered
-int remining_data_to_share(int remainig_node, int node_rank, int comm_dist)
-{
-  int shared_size = remainig_node - node_rank;
-  if (shared_size >= comm_dist)
-  {
-    return comm_dist;
-  }
-  return shared_size;
 }
 
 int allgather_recursivedoubling(const void *sbuf, size_t scount, MPI_Datatype sdtype,
