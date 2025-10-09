@@ -471,7 +471,7 @@ int coll_memcpy_host_to_device(void** d_buf, void** buf, size_t count, size_t ty
     case REDUCE:
       PICO_CORE_CUDA_CHECK(cudaMemcpy(*d_buf, *buf, count * type_size, cudaMemcpyHostToDevice), err);
       break;
-    case REDUCE_SCATTER;
+    case REDUCE_SCATTER:
       PICO_CORE_CUDA_CHECK(cudaMemcpy(*d_buf, *buf, count * type_size, cudaMemcpyHostToDevice), err);
       break;
     case SCATTER:
@@ -519,7 +519,7 @@ int coll_memcpy_device_to_host(void** d_buf, void** buf, size_t count, size_t ty
         PICO_CORE_CUDA_CHECK(cudaMemcpy(*buf, *d_buf, count * type_size, cudaMemcpyDeviceToHost), err);
       }
       break;
-    case REDUCE_SCATTER;
+    case REDUCE_SCATTER:
       PICO_CORE_CUDA_CHECK(cudaMemcpy(*buf, *d_buf, (count / (size_t) comm_sz) * type_size, cudaMemcpyDeviceToHost), err);
       break;
     case SCATTER:
