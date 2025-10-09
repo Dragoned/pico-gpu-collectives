@@ -18,7 +18,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
   int line = -1, rank, size, sub_group_size, remaining_node, err = MPI_SUCCESS;
   int peer, distance, lowerblokdata, upperblockdata, peergroup, nodegroup;
   ptrdiff_t rlb, rext;
-  char *temprecv = NULL, *tempsend = NULL;
+  char *temprecv = NULL, *tempsend = NULL, *temprecv_buff;
 
   MPI_Comm_size(comm, &size);
   MPI_Comm_rank(comm, &rank);
@@ -30,20 +30,36 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
     goto err_hndl;
   }
 
+#ifdef PICO_MPI_CUDA_AWARE
+  temprecv_buff = (char *)malloc(size * rcount * rext);
+  if(temprecv_buff == NULL){
+    line = __LINE__;
+    err = MPI_ERR_NO_MEM;
+    goto err_hndl;
+  }
+#else
+  temprecv_buff = rbuf;
+#endif
+
+#ifndef PICO_MPI_CUDA_AWARE
   // Setup buffer for mpi if not in place
   if (MPI_IN_PLACE != sbuf)
   {
     tempsend = (char *)sbuf;
-    temprecv = (char *)rbuf + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+    temprecv = temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
 
     err = COPY_BUFF_DIFF_DT(tempsend, scount, sdtype, temprecv, rcount, rdtype);
-
     if (MPI_SUCCESS != err)
     {
       line = __LINE__;
       goto err_hndl;
     }
   }
+#elif PICO_MPI_CUDA_AWARE
+  tempsend = (char *)sbuf;
+  temprecv = temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+  BINE_CUDA_CHECK(cudaMemcpy(temprecv, tempsend, rcount * rext, cudaMemcpyDeviceToHost));
+#endif
 
   // findi sub group power of 2
   sub_group_size = floor_power_of_two(size);
@@ -55,7 +71,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
   if (rank >= sub_group_size)
   {
 
-    tempsend = (char *)rbuf + (ptrdiff_t)rank * (ptrdiff_t)scount * rext;
+    tempsend = temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)scount * rext;
     err = MPI_Send(tempsend, scount, sdtype, rank - sub_group_size, 0, comm);
 
     if (MPI_SUCCESS != err)
@@ -67,7 +83,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
   else if (rank < remaining_node)
   {
 
-    temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + rank) * (ptrdiff_t)rcount * rext;
+    temprecv = temprecv_buff + (ptrdiff_t)(sub_group_size + rank) * (ptrdiff_t)rcount * rext;
     err = MPI_Recv(temprecv, rcount, sdtype, sub_group_size + rank, 0, comm, MPI_STATUS_IGNORE);
 
     if (MPI_SUCCESS != err)
@@ -88,13 +104,13 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
 
       if (rank < peer)
       {
-        tempsend = (char *)rbuf + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
-        temprecv = (char *)rbuf + (ptrdiff_t)(lowerblokdata + distance) * (ptrdiff_t)rcount * rext;
+        tempsend = temprecv_buff + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
+        temprecv = temprecv_buff + (ptrdiff_t)(lowerblokdata + distance) * (ptrdiff_t)rcount * rext;
       }
       else
       {
-        tempsend = (char *)rbuf + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
-        temprecv = (char *)rbuf + (ptrdiff_t)(lowerblokdata - distance) * (ptrdiff_t)rcount * rext;
+        tempsend = temprecv_buff + (ptrdiff_t)lowerblokdata * (ptrdiff_t)rcount * rext;
+        temprecv = temprecv_buff + (ptrdiff_t)(lowerblokdata - distance) * (ptrdiff_t)rcount * rext;
         lowerblokdata -= distance;
       }
 
@@ -115,8 +131,8 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
       // send and recive extra data
       if (peergroup < remaining_node && nodegroup < remaining_node)
       {
-        tempsend = (char *)rbuf + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
-        temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
+        tempsend = temprecv_buff + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
+        temprecv = temprecv_buff + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
         if (peergroup < rank)
         {
           upperblockdata = sub_group_size + peergroup;
@@ -134,7 +150,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
       // send extra data
       else if (nodegroup < remaining_node)
       {
-        tempsend = (char *)rbuf + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
+        tempsend = temprecv_buff + (ptrdiff_t)upperblockdata * (ptrdiff_t)rcount * rext;
         err = MPI_Send(tempsend, (ptrdiff_t)remining_data_to_share(remaining_node, nodegroup, distance) * (ptrdiff_t)rcount, rdtype, peer, 0, comm);
         if (MPI_SUCCESS != err)
         {
@@ -145,7 +161,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
       // recive extra data
       else if (peergroup < remaining_node)
       {
-        temprecv = (char *)rbuf + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
+        temprecv = temprecv_buff + (ptrdiff_t)(sub_group_size + peergroup) * (ptrdiff_t)rcount * rext;
         if (peergroup < rank)
         {
           upperblockdata = sub_group_size + peergroup;
@@ -177,7 +193,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
     // second block edge case for the last rank
     if (size - (rank + 1) > 0)
     {
-      temprecv = (char *)rbuf + (ptrdiff_t)(rank + 1) * (ptrdiff_t)rcount * rext;
+      temprecv = temprecv_buff + (ptrdiff_t)(rank + 1) * (ptrdiff_t)rcount * rext;
       err = MPI_Recv(temprecv, (ptrdiff_t)(size - (rank + 1)) * rcount, sdtype, peer, 0, comm, MPI_STATUS_IGNORE);
 
       if (MPI_SUCCESS != err)
@@ -201,7 +217,7 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
     // second block edge case for the last rank
     if (size - (peer + 1) > 0)
     {
-      tempsend = (char *)rbuf + (ptrdiff_t)(peer + 1) * (ptrdiff_t)rcount * rext;
+      tempsend = temprecv_buff + (ptrdiff_t)(peer + 1) * (ptrdiff_t)rcount * rext;
       err = MPI_Send(tempsend, (ptrdiff_t)(size - (peer + 1)) * rcount, sdtype, peer, 0, comm);
 
       if (MPI_SUCCESS != err)
@@ -211,6 +227,10 @@ int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI
       }
     }
   }
+
+#ifdef PICO_MPI_CUDA_AWARE
+  BINE_CUDA_CHECK(cudaMemcpy(rbuf, temprecv_buff, size * rcount * rext, cudaMemcpyHostToDevice));
+#endif
 
   return MPI_SUCCESS;
 err_hndl:
