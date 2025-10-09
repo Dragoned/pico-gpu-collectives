@@ -28,7 +28,7 @@
 #ifndef DEBUG
   #define PICO_CORE_DEBUG_PRINT_STR(name)
   #define PICO_CORE_DEBUG_PRINT_BUFFERS(result, expected, count, dtype, comm, use_barrier) do {} while(0)
-#elif !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE  // Trying this with gpu buffer would need memcpy back to host
+#elif !defined PICO_NCCL //&& !defined PICO_MPI_CUDA_AWARE  // Trying this with gpu buffer would need memcpy back to host
   #define PICO_CORE_DEBUG_PRINT_STR(name)           \
     do{                                         \
       int my_r;                                 \
