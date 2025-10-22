@@ -1125,6 +1125,39 @@
           "external"
         ]
       },
+      "recursivedoubling_hierarchy_over": {
+        "desc": "libpico external recursive doubling algorithm. Works only on power of 2 processes. Comm_sz must be greater or equal to count.",
+        "library": {
+          "libpico": "1.0.0"
+        },
+        "cvar": "auto",
+        "dynamic_rule": 0,
+        "constraints": [
+          {
+            "key": "count",
+            "conditions": [
+              {
+                "operator": ">=",
+                "value": "comm_sz"
+              }
+            ]
+          },
+          {
+            "key": "comm_sz",
+            "conditions": [
+              {
+                "operator": "is_power_of_two",
+                "value": true
+              }
+            ]
+          }
+        ],
+        "tags": [
+          "recursive_doubling",
+          "cuda",
+          "external"
+        ]
+      },
       "ring_over": {
         "desc": "libpico external ring algorithm. This algorithm is used for large messages. Comm_sz must be greater or equal to count.",
         "library": {

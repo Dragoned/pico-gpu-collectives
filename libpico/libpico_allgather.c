@@ -12,6 +12,145 @@
 #include "libpico.h"
 #include "libpico_utils.h"
 
+#define GPU_ON_NODE 4
+
+int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+                                          void *rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
+{
+  int line, rank, size, err = MPI_SUCCESS;
+  int peer, distance, group_offset, local_rank, group_num, group_rank, sendblocklocation, depth;
+  ptrdiff_t rlb, rext;
+  char *temprecv = NULL, *tempsend = NULL, *temprecv_buff = NULL;
+
+  MPI_Comm_size(comm, &size);
+  MPI_Comm_rank(comm, &rank);
+
+  err = MPI_Type_get_extent(rdtype, &rlb, &rext);
+  if (MPI_SUCCESS != err)
+  {
+    line = __LINE__;
+    goto err_hndl;
+  }
+
+#ifdef PICO_MPI_CUDA_AWARE
+  temprecv_buff = (char *)calloc(size * rcount, rext);
+  if(temprecv_buff == NULL){
+    line = __LINE__;
+    err = MPI_ERR_NO_MEM;
+    goto err_hndl;
+  }
+
+  tempsend = (char *)sbuf;
+  temprecv = temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+  BINE_CUDA_CHECK(cudaMemcpy(temprecv, tempsend, rcount * rext, cudaMemcpyDeviceToHost));
+#else
+  temprecv_buff = rbuf;
+
+  // Setup buffer for mpi if not in place
+  if (MPI_IN_PLACE != sbuf)
+  {
+    tempsend = (char *)sbuf;
+    temprecv = temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+
+    err = COPY_BUFF_DIFF_DT(tempsend, scount, sdtype, temprecv, rcount, rdtype);
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
+  }
+#endif
+
+  // local allgather
+  group_offset = rank & ~(GPU_ON_NODE - 1);
+  local_rank = rank % GPU_ON_NODE;
+
+  sendblocklocation = rank;
+  for (distance = 0x1; distance < GPU_ON_NODE; distance <<= 1) {
+    peer = group_offset + (local_rank ^ distance);
+
+    if(rank < peer) {
+      tempsend = (char*)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
+      temprecv = (char*)temprecv_buff + (ptrdiff_t)(sendblocklocation + distance) * (ptrdiff_t)rcount * rext;
+    } else {
+      tempsend = (char*)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
+      temprecv = (char*)temprecv_buff + (ptrdiff_t)(sendblocklocation - distance) * (ptrdiff_t)rcount * rext;
+      sendblocklocation -= distance;
+    }
+
+    /* Sendreceive */
+    err = MPI_Sendrecv(tempsend, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype, peer, 0,
+                        temprecv, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype,
+                        peer, 0, comm, MPI_STATUS_IGNORE);
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
+  }
+
+  // globbal allgather
+  group_num = size / GPU_ON_NODE;
+  group_rank = group_offset / GPU_ON_NODE;
+  sendblocklocation = group_rank * GPU_ON_NODE;
+  //printf("Number of group: %d group rank: %d rank: %d\n", group_num, group_rank, rank);
+  if (rank % GPU_ON_NODE == 0)
+  {
+    //printf("rank %d group %d\n", rank, group_rank);
+
+    for (distance = 0x1; distance < group_num; distance <<= 1)
+    {
+      peer = (group_rank ^ distance) * GPU_ON_NODE;
+      //printf("distance %d rnak %d peer %d\n", distance, rank, peer);
+      if (rank < peer)
+      {
+        tempsend = (char *)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
+        temprecv = (char *)temprecv_buff + (ptrdiff_t)(sendblocklocation + (distance * GPU_ON_NODE)) * (ptrdiff_t)rcount * rext;
+        //printf("rank %d reciv location %d\n", rank, (sendblocklocation + (distance * GPU_ON_NODE)) * rcount);
+      }
+      else
+      {
+        tempsend = (char *)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
+        temprecv = (char *)temprecv_buff + (ptrdiff_t)(sendblocklocation - (distance * GPU_ON_NODE)) * (ptrdiff_t)rcount * rext;
+        //printf("rank %d reciv location %d\n", rank, (sendblocklocation - (distance * GPU_ON_NODE)) * rcount);
+        sendblocklocation -= (distance * GPU_ON_NODE);
+      }
+
+      /* Sendreceive */
+      err = MPI_Sendrecv(tempsend, (ptrdiff_t)distance * (ptrdiff_t)rcount * GPU_ON_NODE, rdtype, peer, 0,
+                          temprecv, (ptrdiff_t)distance * (ptrdiff_t)rcount * GPU_ON_NODE, rdtype,
+                          peer, 0, comm, MPI_STATUS_IGNORE);
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
+    }
+  }
+
+  // group result in group
+  if (rank % GPU_ON_NODE == 0)
+  {
+    MPI_Send(temprecv_buff, size * rcount, rdtype, group_rank * GPU_ON_NODE + 1, 0, comm);
+    MPI_Send(temprecv_buff, size * rcount, rdtype, group_rank * GPU_ON_NODE + 2, 0, comm);
+    MPI_Send(temprecv_buff, size * rcount, rdtype, group_rank * GPU_ON_NODE + 3, 0, comm);
+  }
+  else
+  {
+    MPI_Recv(temprecv_buff, size * rcount, rdtype, group_rank * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
+  }
+
+#ifdef PICO_MPI_CUDA_AWARE
+  BINE_CUDA_CHECK(cudaMemcpy(rbuf, temprecv_buff, size * rcount * rext, cudaMemcpyHostToDevice));
+#endif
+
+  return MPI_SUCCESS;
+err_hndl:
+  BINE_DEBUG_PRINT("\n%s:%4d\tRank %d Error occurred %d\n\n", __FILE__, line, rank, err);
+  (void)line; // silence compiler warning
+  return err;
+}
+
 int allgather_recursivedoubling_nontowpower(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                                             void *rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
 {
