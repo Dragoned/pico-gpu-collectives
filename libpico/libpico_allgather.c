@@ -76,19 +76,19 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
     } else {
       tempsend = (char*)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
       temprecv = (char*)temprecv_buff + (ptrdiff_t)(sendblocklocation - distance) * (ptrdiff_t)rcount * rext;
-      sendblocklocation -= distance;
-    }
+        sendblocklocation -= distance;
+      }
 
-    /* Sendreceive */
+      /* Sendreceive */
     err = MPI_Sendrecv(tempsend, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype, peer, 0,
                         temprecv, (ptrdiff_t)distance * (ptrdiff_t)rcount, rdtype,
-                        peer, 0, comm, MPI_STATUS_IGNORE);
-    if (MPI_SUCCESS != err)
-    {
-      line = __LINE__;
-      goto err_hndl;
+                         peer, 0, comm, MPI_STATUS_IGNORE);
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
     }
-  }
 
   // globbal allgather
   node_size = size / GPU_ON_NODE;
@@ -135,6 +135,7 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
         remaped_peer = remaped_node_rank ^ distance;
         node_data_to_recv = (distance + min(distance, max(remaning_node - (remaped_peer & dist_mask), 0))) * GPU_ON_NODE;
         node_data_to_sand = (distance + min(distance, max(remaning_node - (remaped_node_rank & dist_mask), 0))) * GPU_ON_NODE;
+        dist_mask <<= 1;
         //printf("remaped node rank %d data to sand %d data to reciv %d \n", remaped_node_rank, node_data_to_sand, node_data_to_recv);
 
         //printf("distance %d rnak %d peer %d\n", distance, rank, peer);
