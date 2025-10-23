@@ -143,7 +143,7 @@ static inline allgather_func_ptr get_allgather_function(const char *algorithm) {
   PICO_CORE_DEBUG_PRINT_STR("MPI_Allgather");
   return allgather_wrapper;
 #else
-  return ncclAllGather
+  return ncclAllGather;
 #endif
 }
 
@@ -163,7 +163,7 @@ static inline alltoall_func_ptr get_alltoall_function(const char *algorithm) {
   PICO_CORE_DEBUG_PRINT_STR("MPI_Alltoall");
   return alltoall_wrapper;
 #else
-  return ncclAlltoAll
+  return ncclAllToAll;
 #endif
 }
 
@@ -338,7 +338,7 @@ int get_routine(test_routine_t *test_routine, const char *algorithm) {
   }
 
   is_segmented = getenv("SEGMENTED");
-  if(strcmp(is_segmented, "yes") == 0) { 
+  if(is_segmented != NULL && strcmp(is_segmented, "yes") == 0) { 
     segsize = getenv("SEGSIZE");
     if(segsize == NULL) {
       return -1;
@@ -417,7 +417,7 @@ int get_data_saving_options(test_routine_t *test_routine, size_t count,
     return -1;
   }
 
-#if !defined PICO_MPI_CUDA_AWARE || !defined PICO_NCCL
+#if !defined PICO_MPI_CUDA_AWARE && !defined PICO_NCCL
   snprintf(alloc_filename, sizeof(alloc_filename), "/alloc_%d.csv", comm_sz);
 #else
   snprintf(alloc_filename, sizeof(alloc_filename), "/alloc_%d_GPU.csv", comm_sz);
