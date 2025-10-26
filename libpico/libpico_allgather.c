@@ -12,7 +12,7 @@
 #include "libpico.h"
 #include "libpico_utils.h"
 
-#define GPU_ON_NODE 4
+#define GPU_ON_NODE 3
 
 int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                                           void *rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
@@ -130,23 +130,41 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
     }
   }
 
-  // snad data back localy
   if (local_rank < remaning_local * 2 && local_rank ^ 1)
   {
     tempsend = (char *)temprecv_buff + (ptrdiff_t)node_offset * (ptrdiff_t)rcount * rext;
-    err = MPI_Send(tempsend, rcount * GPU_ON_NODE, rdtype, rank + 1, 0, comm);
+    err = MPI_Send(tempsend, rcount * (local_rank + 1), rdtype, rank + 1, 0, comm);
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
+    tempsend = (char *)temprecv_buff + (ptrdiff_t)(rank + 1) * (ptrdiff_t)rcount * rext;
+    err = MPI_Send(tempsend, rcount * (GPU_ON_NODE - (local_rank + 1)), rdtype, rank + 1, 0, comm);
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
   }
   else if (local_rank < remaning_local * 2 && local_rank & 1)
   {
     temprecv = (char *)temprecv_buff + (ptrdiff_t)node_offset * (ptrdiff_t)rcount * rext;
-    err = MPI_Recv(temprecv, rcount * GPU_ON_NODE, rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
+    err = MPI_Recv(temprecv, rcount * local_rank, rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
+    temprecv = (char *)temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+    err = MPI_Recv(temprecv, rcount * (GPU_ON_NODE - local_rank), rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
   }
-
-  if (MPI_SUCCESS != err)
-  {
-    line = __LINE__;
-    goto err_hndl;
-  }
+  // end local comunication
 
   // globbal allgather
   node_size = size / GPU_ON_NODE;
@@ -247,6 +265,7 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
       }
     }
   }
+  // end globbal
 
   // share data back localy
   //TODO: make all the node that recive data cominucate to other
@@ -264,6 +283,10 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
 
 #ifdef PICO_MPI_CUDA_AWARE
   BINE_CUDA_CHECK(cudaMemcpy(rbuf, temprecv_buff, size * rcount * rext, cudaMemcpyHostToDevice));
+  if (temprecv_buff != NULL)
+  {
+    free(temprecv_buff);
+  }
 #endif
 
   return MPI_SUCCESS;
