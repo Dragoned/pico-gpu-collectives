@@ -12,7 +12,7 @@
 #include "libpico.h"
 #include "libpico_utils.h"
 
-#define GPU_ON_NODE 3
+#define GPU_ON_NODE 4
 
 int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                                           void *rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
@@ -72,27 +72,31 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
   sendblocklocation = rank;
 
   // share data betwin excluded local rank
-  if (local_rank < local_sub_group && local_rank & 1)
+  if (local_sub_group != GPU_ON_NODE)
   {
-    tempsend = (char *)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
-    err = MPI_Send(tempsend, rcount, rdtype, rank - 1, 0, comm);
-  }
-  else if (local_rank < local_sub_group && local_rank ^ 1)
-  {
-    temprecv = (char *)temprecv_buff + (ptrdiff_t)(sendblocklocation + 1) * (ptrdiff_t)rcount * rext;
-    err = MPI_Recv(temprecv, rcount, rdtype, rank + 1, 0, comm, MPI_STATUS_IGNORE);
+    if ((local_rank >> 1) < remaning_local && local_rank & 1)
+    {
+      tempsend = (char *)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
+      err = MPI_Send(tempsend, rcount, rdtype, rank - 1, 0, comm);
+    }
+    else if ((local_rank >> 1) < remaning_local && !(local_rank & 1))
+    {
+      temprecv = (char *)temprecv_buff + (ptrdiff_t)(sendblocklocation + 1) * (ptrdiff_t)rcount * rext;
+      err = MPI_Recv(temprecv, rcount, rdtype, rank + 1, 0, comm, MPI_STATUS_IGNORE);
+    }
+
+    if (MPI_SUCCESS != err)
+    {
+      line = __LINE__;
+      goto err_hndl;
+    }
   }
 
-  if (MPI_SUCCESS != err)
-  {
-    line = __LINE__;
-    goto err_hndl;
-  }
-
-  if (local_rank ^ 1 || local_rank > local_sub_group)
+  // printf("local rank %d rank %d condition %d\n", local_rank, rank, !(local_rank & 1));
+  if (!(local_rank & 1) || local_rank >= remaning_local << 1 || local_sub_group == GPU_ON_NODE)
   {
     // printf("rank %d local rank %d\n", rank, local_rank);
-    remaped_local_rank = local_rank < local_sub_group ? local_rank / 2 : local_rank - remaning_local;
+    remaped_local_rank = (local_rank >> 1) < remaning_local && local_sub_group != GPU_ON_NODE ? local_rank >> 1 : local_rank - remaning_local;
     dist_mask = ~0;
 
     for (distance = 0x1; distance < local_sub_group; distance <<= 1)
@@ -114,9 +118,9 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
         sendblocklocation -= local_data_to_recv;
       }
 
-      peer = node_offset + (remaped_peer < remaning_local ? (remaped_peer * 2) : (remaped_peer + remaning_local));
+      peer = node_offset + (remaped_peer < remaning_local && local_sub_group != GPU_ON_NODE ? (remaped_peer * 2) : (remaped_peer + remaning_local));
 
-      // printf("rnak %d remaped rank %d remaped peer %d perr %d\n", rank, remaped_local_rank, remaped_peer, peer);
+      // printf("rnak %d remaped rank %d remaped peer %d perr %d distance %d\n", rank, remaped_local_rank, remaped_peer, peer, distance);
 
       /* Sendreceive */
       err = MPI_Sendrecv(tempsend, (ptrdiff_t)local_data_to_sand * (ptrdiff_t)rcount, rdtype, peer, 0,
@@ -130,38 +134,41 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
     }
   }
 
-  if (local_rank < local_sub_group && local_rank ^ 1)
+  if (local_sub_group != GPU_ON_NODE)
   {
-    tempsend = (char *)temprecv_buff + (ptrdiff_t)node_offset * (ptrdiff_t)rcount * rext;
-    err = MPI_Send(tempsend, rcount * (local_rank + 1), rdtype, rank + 1, 0, comm);
-    if (MPI_SUCCESS != err)
+    if ((local_rank >> 1) < remaning_local && !(local_rank & 1))
     {
-      line = __LINE__;
-      goto err_hndl;
+      tempsend = (char *)temprecv_buff + (ptrdiff_t)node_offset * (ptrdiff_t)rcount * rext;
+      err = MPI_Send(tempsend, rcount * (local_rank + 1), rdtype, rank + 1, 0, comm);
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
+      tempsend = (char *)temprecv_buff + (ptrdiff_t)(rank + 1) * (ptrdiff_t)rcount * rext;
+      err = MPI_Send(tempsend, rcount * (GPU_ON_NODE - (local_rank + 1)), rdtype, rank + 1, 0, comm);
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
     }
-    tempsend = (char *)temprecv_buff + (ptrdiff_t)(rank + 1) * (ptrdiff_t)rcount * rext;
-    err = MPI_Send(tempsend, rcount * (GPU_ON_NODE - (local_rank + 1)), rdtype, rank + 1, 0, comm);
-    if (MPI_SUCCESS != err)
+    else if ((local_rank >> 1) < remaning_local && local_rank & 1)
     {
-      line = __LINE__;
-      goto err_hndl;
-    }
-  }
-  else if (local_rank < local_sub_group && local_rank & 1)
-  {
-    temprecv = (char *)temprecv_buff + (ptrdiff_t)node_offset * (ptrdiff_t)rcount * rext;
-    err = MPI_Recv(temprecv, rcount * local_rank, rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
-    if (MPI_SUCCESS != err)
-    {
-      line = __LINE__;
-      goto err_hndl;
-    }
-    temprecv = (char *)temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
-    err = MPI_Recv(temprecv, rcount * (GPU_ON_NODE - local_rank), rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
-    if (MPI_SUCCESS != err)
-    {
-      line = __LINE__;
-      goto err_hndl;
+      temprecv = (char *)temprecv_buff + (ptrdiff_t)node_offset * (ptrdiff_t)rcount * rext;
+      err = MPI_Recv(temprecv, rcount * local_rank, rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
+      temprecv = (char *)temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+      err = MPI_Recv(temprecv, rcount * (GPU_ON_NODE - local_rank), rdtype, rank - 1, 0, comm, MPI_STATUS_IGNORE);
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
     }
   }
   // end local comunication
@@ -178,30 +185,33 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
   {
     // share data betwin extra node and node in the group
     // printf("rank %d group %d\n", rank, group_rank);
-    if (node_rank < node_sub_group && node_rank & 1)
+    if (node_sub_group != node_size)
     {
-      // printf("node rnak %d rank %d sent data to node rank %d rank %d\n", node_rank, rank, node_rank - 1, (node_rank - 1) * GPU_ON_NODE);
-      tempsend = (char *)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
-      err = MPI_Send(tempsend, GPU_ON_NODE * rcount, rdtype, (node_rank - 1) * GPU_ON_NODE, 0, comm);
-    }
-    else if (node_rank < node_sub_group && node_rank ^ 1)
-    {
-      // printf("node rnak %d rank %d recived data from node rank %d rank %d\n", node_rank, rank, node_rank + 1, (node_rank + 1) * GPU_ON_NODE);
-      temprecv = (char *)temprecv_buff + (ptrdiff_t)(sendblocklocation + GPU_ON_NODE) * (ptrdiff_t)rcount * rext;
-      err = MPI_Recv(temprecv, GPU_ON_NODE * rcount, rdtype, (node_rank + 1) * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
-    }
+      if ((node_rank >> 1) < remaning_node && node_rank & 1)
+      {
+        // printf("node rnak %d rank %d sent data to node rank %d rank %d\n", node_rank, rank, node_rank - 1, (node_rank - 1) * GPU_ON_NODE);
+        tempsend = (char *)temprecv_buff + (ptrdiff_t)sendblocklocation * (ptrdiff_t)rcount * rext;
+        err = MPI_Send(tempsend, GPU_ON_NODE * rcount, rdtype, (node_rank - 1) * GPU_ON_NODE, 0, comm);
+      }
+      else if ((node_rank >> 1) < remaning_node && !(node_rank & 1))
+      {
+        // printf("node rnak %d rank %d recived data from node rank %d rank %d\n", node_rank, rank, node_rank + 1, (node_rank + 1) * GPU_ON_NODE);
+        temprecv = (char *)temprecv_buff + (ptrdiff_t)(sendblocklocation + GPU_ON_NODE) * (ptrdiff_t)rcount * rext;
+        err = MPI_Recv(temprecv, GPU_ON_NODE * rcount, rdtype, (node_rank + 1) * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
+      }
 
-    if (MPI_SUCCESS != err)
-    {
-      line = __LINE__;
-      goto err_hndl;
+      if (MPI_SUCCESS != err)
+      {
+        line = __LINE__;
+        goto err_hndl;
+      }
     }
 
     // exchange data in sub group
     // printf("node rank %d reced globbal reduction\n", node_rank);
-    if (node_rank ^ 1 || node_rank > node_sub_group)
+    if (!(node_rank & 1) || node_rank >= (remaning_node << 1) || node_size == node_sub_group)
     {
-      remaped_node_rank = node_rank < node_sub_group ? node_rank / 2 : node_rank - remaning_node;
+      remaped_node_rank = (node_rank >> 1) < remaning_node && node_size != node_sub_group ? node_rank / 2 : node_rank - remaning_node;
 
       // printf("node rank %d remapped to node rank %d rank %d\n", node_rank, remaped_node_rank, rank);
 
@@ -228,7 +238,7 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
           sendblocklocation -= node_data_to_recv;
         }
 
-        peer = remaped_peer < remaning_node ? remaped_peer * 2 : remaped_peer + remaning_node;
+        peer = remaped_peer < remaning_node && node_size != node_sub_group ? remaped_peer * 2 : remaped_peer + remaning_node;
         peer *= GPU_ON_NODE;
         // printf("remaped node rank %d rank %d remapped peer %d peer %d\n", remaped_node_rank, rank, remaped_peer, peer);
 
@@ -246,53 +256,76 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
 
     // share data back to extra node
     // printf("node rank %d rank %d reached global sending back\n", node_rank, rank);
-    if (node_rank < node_sub_group && node_rank ^ 1)
+    if (node_sub_group != node_size)
     {
-      err = MPI_Send(temprecv_buff, (node_rank + 1) * GPU_ON_NODE * rcount, rdtype, (node_rank + 1) * GPU_ON_NODE, 0, comm);
-      if (MPI_SUCCESS != err)
+      if ((node_rank >> 1) < remaning_node && !(node_rank & 1))
       {
-        line = __LINE__;
-        goto err_hndl;
+        err = MPI_Send(temprecv_buff, (node_rank + 1) * GPU_ON_NODE * rcount, rdtype, (node_rank + 1) * GPU_ON_NODE, 0, comm);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
+        tempsend = (char *)temprecv_buff + (ptrdiff_t)(node_rank + 1) * GPU_ON_NODE * (ptrdiff_t)rcount * rext;
+        err = MPI_Send(tempsend, (node_size - (node_rank + 1)) * GPU_ON_NODE * rcount, rdtype, (node_rank + 1) * GPU_ON_NODE, 0, comm);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
       }
-      tempsend = (char *)temprecv_buff + (ptrdiff_t)(node_rank + 1) * GPU_ON_NODE * (ptrdiff_t)rcount * rext;
-      err = MPI_Send(tempsend, (node_size - (node_rank + 1)) * GPU_ON_NODE * rcount, rdtype, (node_rank + 1) * GPU_ON_NODE, 0, comm);
-      if (MPI_SUCCESS != err)
+      else if ((node_rank >> 1) < remaning_node && node_rank & 1)
       {
-        line = __LINE__;
-        goto err_hndl;
-      }
-    }
-    else if (node_rank < node_sub_group && node_rank & 1)
-    {
-      err = MPI_Recv(temprecv_buff, node_rank * GPU_ON_NODE * rcount, rdtype, (node_rank - 1) * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
-      if (MPI_SUCCESS != err)
-      {
-        line = __LINE__;
-        goto err_hndl;
-      }
-      temprecv = (char *)temprecv_buff + (ptrdiff_t)node_rank * GPU_ON_NODE * (ptrdiff_t)rcount * rext;
-      err = MPI_Recv(temprecv, (node_size - node_rank ) * GPU_ON_NODE * rcount, rdtype, (node_rank - 1) * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
-      if (MPI_SUCCESS != err)
-      {
-        line = __LINE__;
-        goto err_hndl;
+        err = MPI_Recv(temprecv_buff, node_rank * GPU_ON_NODE * rcount, rdtype, (node_rank - 1) * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
+        temprecv = (char *)temprecv_buff + (ptrdiff_t)node_rank * GPU_ON_NODE * (ptrdiff_t)rcount * rext;
+        err = MPI_Recv(temprecv, (node_size - node_rank) * GPU_ON_NODE * rcount, rdtype, (node_rank - 1) * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
+        if (MPI_SUCCESS != err)
+        {
+          line = __LINE__;
+          goto err_hndl;
+        }
       }
     }
   }
   // end globbal
 
   // share data back localy
-  //TODO: make all the node that recive data cominucate to other
-  if (rank % GPU_ON_NODE == 0)
+  // TODO: make all the node that recive data cominucate to other
+  for (distance = 0x1; distance < local_sub_group; distance <<= 1)
   {
-    for (int i = 1; i < GPU_ON_NODE; i++)
+    // printf("rnak %d local %d distance %d distance 2x %d\n", rank, local_rank, distance, distance << 1);
+    if (local_rank >= (distance << 1))
+      continue;
+
+    peer = local_rank ^ distance;
+
+    // printf("dist %d rank %d local rank %d peer %d\n", distance, rank, local_rank, peer);
+    if (local_rank < peer)
     {
-      MPI_Send(temprecv_buff, size * rcount, rdtype, node_rank * GPU_ON_NODE + i, 0, comm);
+      MPI_Send(temprecv_buff, size * rcount, rdtype, peer + node_offset, 0, comm);
+    }
+    else
+    {
+      MPI_Recv(temprecv_buff, size * rcount, rdtype, peer + node_offset, 0, comm, MPI_STATUS_IGNORE);
     }
   }
-  else
+
+  // printf("rank %d reached\n", rank);
+
+  if (local_rank < remaning_local)
   {
-    MPI_Recv(temprecv_buff, size * rcount, rdtype, node_rank * GPU_ON_NODE, 0, comm, MPI_STATUS_IGNORE);
+    // printf("rank %d sand to %d rem %d\n",  rank, rank + local_sub_group, remaning_local);
+    MPI_Send(temprecv_buff, size * rcount, rdtype, rank + local_sub_group, 0, comm);
+  }
+  else if (local_rank >= local_sub_group)
+  {
+    // printf("rank %d recive from %d\n",  rank, rank - local_sub_group);
+    MPI_Recv(temprecv_buff, size * rcount, rdtype, rank - local_sub_group, 0, comm, MPI_STATUS_IGNORE);
   }
 
 #ifdef PICO_MPI_CUDA_AWARE
