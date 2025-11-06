@@ -17,11 +17,11 @@ all: libpico pico_core
 
 libpico:
 	@echo -e "$(BLUE)[BUILD] Compiling libpico static library...$(NC)"
-	$(MAKE) -C libpico $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE))
+	$(MAKE) -C libpico $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE)) $(if $(GPU_NATIV_SUPPORT),GPU_NATIV_SUPPORT=$(GPU_NATIV_SUPPORT))
 
 pico_core: libpico
 	@echo -e "$(BLUE)[BUILD] Compiling pico_core executable...$(NC)"
-	$(MAKE) -C pico_core $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE))
+	$(MAKE) -C pico_core $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE)) $(if $(GPU_NATIV_SUPPORT),GPU_NATIV_SUPPORT=$(GPU_NATIV_SUPPORT))
 
 clean:
 	@echo -e "${RED}[CLEAN] Cleaning all builds...$(NC)"

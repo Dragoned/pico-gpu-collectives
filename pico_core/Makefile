@@ -14,6 +14,9 @@ PICO_CORE_OBJ_DIR_CUDA  ?= ../obj/pico_core_cuda
 PICO_CORE_OBJS_CUDA     := $(patsubst %.c, $(PICO_CORE_OBJ_DIR_CUDA)/%.o, $(PICO_CORE_SRC))
 PICO_CORE_DEPS_CUDA     := $(patsubst %.c, $(PICO_CORE_OBJ_DIR_CUDA)/%.d, $(PICO_CORE_SRC))
 PICO_CORE_CUDA          := $(BIN_DIR)/pico_core_cuda
+ifeq ($(GPU_NATIV_SUPPORT),1)
+CFLAGS_CUDA += -DGPU_NATIV_SUPPORT
+endif
 
 ifeq ($(DEBUG),1)
 	CFLAGS := $(filter-out -O%,$(CFLAGS))
@@ -47,7 +50,7 @@ $(PICO_CORE_CUDA): $(PICO_CORE_OBJS_CUDA)
 $(PICO_CORE_OBJ_DIR_CUDA)/%.o: %.c
 	@mkdir -p $(PICO_CORE_OBJ_DIR_CUDA)
 	@echo -e "$(YELLOW)[CC] Compiling $< -> $@...$(NC)"
-	$(PICOCC) $(CFLAGS) -DPICO_MPI_CUDA_AWARE -lcudart -c $< -o $@
+	$(PICOCC) $(CFLAGS) $(CFLAGS_CUDA) -DPICO_MPI_CUDA_AWARE -lcudart -c $< -o $@
 
 -include $(PICO_CORE_DEPS_CUDA)
 

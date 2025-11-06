@@ -34,7 +34,7 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
     goto err_hndl;
   }
 
-#ifdef PICO_MPI_CUDA_AWARE
+#if defined PICO_MPI_CUDA_AWARE && !defined GPU_NATIV_SUPPORT
   temprecv_buff = (char *)calloc(size * rcount, rext);
   if (temprecv_buff == NULL)
   {
@@ -46,6 +46,7 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
   tempsend = (char *)sbuf;
   temprecv = temprecv_buff + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
   BINE_CUDA_CHECK(cudaMemcpy(temprecv, tempsend, rcount * rext, cudaMemcpyDeviceToHost));
+  printf("non nativ support\n");
 #else
   temprecv_buff = rbuf;
 
@@ -328,7 +329,7 @@ int allgather_recursivedoubling_hierarchy(const void *sbuf, size_t scount, MPI_D
     MPI_Recv(temprecv_buff, size * rcount, rdtype, rank - local_sub_group, 0, comm, MPI_STATUS_IGNORE);
   }
 
-#ifdef PICO_MPI_CUDA_AWARE
+#if defined PICO_MPI_CUDA_AWARE && !defined GPU_NATIV_SUPPORT
   BINE_CUDA_CHECK(cudaMemcpy(rbuf, temprecv_buff, size * rcount * rext, cudaMemcpyHostToDevice));
   if (temprecv_buff != NULL)
   {

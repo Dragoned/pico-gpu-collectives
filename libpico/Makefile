@@ -12,6 +12,9 @@ LIB_OBJ_DIR_CUDA ?= ../obj/lib_cuda
 LIB_OBJS_CUDA    := $(patsubst %.c, $(LIB_OBJ_DIR_CUDA)/%.o, $(LIB_SRC))
 LIB_DEPS_CUDA    := $(patsubst %.c, $(LIB_OBJ_DIR_CUDA)/%.d, $(LIB_SRC))
 LIBPICO_CUDA     := $(LIB_DIR)/libpico_cuda.a
+ifeq ($(GPU_NATIV_SUPPORT),1)
+CFLAGS_CUDA += -DGPU_NATIV_SUPPORT
+endif
 
 ifeq ($(PICO_MPI_CUDA_AWARE),1)
 all: $(LIBPICO) $(LIBPICO_CUDA)
@@ -45,7 +48,7 @@ $(LIBPICO_CUDA): $(LIB_OBJS_CUDA)
 $(LIB_OBJ_DIR_CUDA)/%.o: %.c
 	@mkdir -p $(LIB_OBJ_DIR_CUDA)
 	@echo -e "$(YELLOW)[CC] Compiling $< -> $@...$(NC)"
-	$(PICOCC) $(CFLAGS) -DPICO_MPI_CUDA_AWARE -ldcudart -c $< -o $@
+	$(PICOCC) $(CFLAGS) $(CFLAGS_CUDA) -DPICO_MPI_CUDA_AWARE -ldcudart -c $< -o $@
 
 -include $(LIB_DEPS_CUDA)
 
