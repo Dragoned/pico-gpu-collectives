@@ -45,7 +45,7 @@ $(PICO_CORE_OBJ_DIR)/%.o: %.c
 $(PICO_CORE_CUDA): $(PICO_CORE_OBJS_CUDA)
 	@mkdir -p $(BIN_DIR)
 	@echo -e "$(GREEN)[LINK] Linking pico_core_cuda: $< -> $@$(NC)"
-	$(PICOCC) $(CFLAGS) -o $@ $^ -L$(LIB_DIR) -lpico_cuda -lcudart -lm
+	$(PICOCC) $(CFLAGS) -o $@ $^ -L$(LIB_DIR) -lpico_cuda -lcudart -lstdc++ -lm
 
 $(PICO_CORE_OBJ_DIR_CUDA)/%.o: %.c
 	@mkdir -p $(PICO_CORE_OBJ_DIR_CUDA)

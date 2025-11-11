@@ -65,9 +65,8 @@ int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const in
   
   /* allocate temporar buffer */
 #ifdef PICO_MPI_CUDA_AWARE
-  printf("alloc cuda buffer\n");
-  BINE_CUDA_CHECK(cudaMalloc((void **)recv_temp_buff, buffer_size));
-  BINE_CUDA_CHECK(cudaMalloc((void **)result_temp_buff, buffer_size));
+  BINE_CUDA_CHECK(cudaMalloc((void **)&recv_temp_buff, buffer_size));
+  BINE_CUDA_CHECK(cudaMalloc((void **)&result_temp_buff, buffer_size));
 #else
   recv_temp_buff = (char *)malloc(buffer_size);
   result_temp_buff = (char *)malloc(buffer_size);
@@ -83,7 +82,7 @@ int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const in
   recv_buff_head = recv_temp_buff - gap;
   result_buff_head = result_temp_buff - gap;
   
-  err = copy_buffer_different_dt(sbuf, dcount, dtype, result_buff_head, dcount, dtype);
+  err = COPY_BUFF_DIFF_DT(sbuf, dcount, dtype, result_buff_head, dcount, dtype);
   if (err != MPI_SUCCESS) goto cleanup;
 
   /* recursive doubling */
@@ -142,8 +141,7 @@ int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const in
 
       // todo: make gpu compatible
     #ifdef PICO_MPI_CUDA_AWARE
-      printf("gpu reduce \n");
-      reduce_wrapper(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size);
+      reduce_wrapper(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size, dtype, op);
     #else
       MPI_Reduce_local(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size, dtype, op);
     #endif
@@ -165,7 +163,7 @@ int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const in
     }
   } else {
     /* copy local results from results buffer into real receive buffer */
-    err = copy_buffer_different_dt(result_buff_head + disps[rank] * extent, rcounts[rank],
+    err = COPY_BUFF_DIFF_DT(result_buff_head + disps[rank] * extent, rcounts[rank],
                                     dtype, rbuf, rcounts[rank], dtype);
     if(MPI_SUCCESS != err) {
       goto cleanup;

@@ -1,11 +1,43 @@
 #ifndef SUPPORT_KERNEL_H
 #define SUPPORT_KERNEL_H
 
+#include <mpi.h>
+#include <cuda.h> 
+#include <stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void reduce_wrapper(void* inbuff, void* inoutbuff, int count);
+enum ReduceType {
+    R_INT8,
+    R_INT16,
+    R_INT32,
+    R_INT64,
+    R_INT,
+    R_FLOAT,
+    R_DOUBLE,
+    R_CHAR,
+    R_UNNOWN_TYPE,
+    R_TYPE_NUM
+};
+
+enum ReduceOp {
+    R_MAX,
+    R_MIN,
+    R_SUM,
+    R_PROD,
+    R_LAND,
+    R_BAND,
+    R_LOR,
+    R_BOR,
+    R_LXOR,
+    R_BXOR,
+    R_UNNOWN_OP,
+    R_OP_NUM
+};
+
+int reduce_wrapper(void* inbuff, void* inoutbuff, int count, MPI_Datatype dtype, MPI_Op op);
 
 #ifdef __cplusplus
 }

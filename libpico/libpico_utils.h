@@ -35,7 +35,7 @@
 #define BINE_UNLIKELY(x) (x)
 #endif // defined(__GNUC__) || defined(__clang__)
 
-#ifdef PICO_MPI_CUDA_AWARE
+#if defined PICO_MPI_CUDA_AWARE && defined GPU_NATIV_SUPPORT
 #define COPY_BUFF_DIFF_DT(...) copy_buffer_different_dt_cuda(__VA_ARGS__)
 #else
 #define COPY_BUFF_DIFF_DT(...) copy_buffer_different_dt(__VA_ARGS__)
