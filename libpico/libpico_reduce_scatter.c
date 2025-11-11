@@ -11,6 +11,179 @@
 #include "libpico.h"
 #include "libpico_utils.h"
 
+#ifdef PICO_MPI_CUDA_AWARE
+#include "support_kernel.h"
+#endif
+
+int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const int rcounts[],
+                                    MPI_Datatype dtype, MPI_Op op, MPI_Comm comm) {
+  int i, rank, size, err = MPI_SUCCESS;
+  size_t dcount;
+  ptrdiff_t extent, true_extent, lb, buffer_size, gap = 0;
+  ptrdiff_t *disps = NULL;
+  char *recv_temp_buff, *result_temp_buff;
+  char *recv_buff_head, *result_buff_head;
+
+  err = MPI_Comm_size(comm, &size);
+  err = MPI_Comm_rank(comm, &rank);
+
+  /*if (rank == 0)
+  {
+    for(i = 0; i < size; i++) {
+      printf("rank %d reciv %d\n", i, rcounts[i]);
+    }
+  }*/
+  
+  /* determinate data displacment  */
+  disps = calloc(size, sizeof(ptrdiff_t));
+  if (disps == NULL)
+    return MPI_ERR_NO_MEM;
+  
+  disps[0] = 0;
+  for (i = 0; i < (size - 1); i++) {
+    disps[i + 1] = disps[i] + rcounts[i];
+  }
+  dcount = disps[size - 1] + rcounts[size - 1];
+
+  /* short cut the trivial case */
+  if(0 == dcount) {
+    free(disps);
+    return MPI_SUCCESS;
+  }
+
+  /* get datatype information */
+  MPI_Type_get_extent(dtype, &lb, &extent);
+  MPI_Type_get_true_extent(dtype, &gap, &true_extent);
+
+  // calculate memory needed for the buffer
+  buffer_size = true_extent + extent * (dcount - 1);
+
+  if (MPI_IN_PLACE == sbuf)
+  {
+    sbuf = rbuf;
+  }
+  
+  /* allocate temporar buffer */
+#ifdef PICO_MPI_CUDA_AWARE
+  printf("alloc cuda buffer\n");
+  BINE_CUDA_CHECK(cudaMalloc((void **)recv_temp_buff, buffer_size));
+  BINE_CUDA_CHECK(cudaMalloc((void **)result_temp_buff, buffer_size));
+#else
+  recv_temp_buff = (char *)malloc(buffer_size);
+  result_temp_buff = (char *)malloc(buffer_size);
+
+  if (recv_temp_buff == NULL || result_temp_buff == NULL)
+  {
+    err = MPI_ERR_NO_MEM;
+    goto cleanup;
+  }
+
+#endif
+
+  recv_buff_head = recv_temp_buff - gap;
+  result_buff_head = result_temp_buff - gap;
+  
+  err = copy_buffer_different_dt(sbuf, dcount, dtype, result_buff_head, dcount, dtype);
+  if (err != MPI_SUCCESS) goto cleanup;
+
+  /* recursive doubling */
+  int rem_data = size >> 1;
+  int dist_mask, last_index = size, peer;
+  int send_index = 0, recv_index = 0;
+  size_t send_size, recv_size;
+  MPI_Request req;
+  for (dist_mask = 0x1; dist_mask < size; dist_mask<<=1)
+  {
+    peer = rank ^ dist_mask;
+
+    send_size = recv_size = 0;
+
+    if (rank < peer)
+    {
+      send_index = recv_index + rem_data;
+      for (i = send_index; i < last_index; ++i)
+      {
+        send_size += rcounts[i];
+      }
+      for (i = recv_index; i < send_index; ++i)
+      {
+        recv_size += rcounts[i];
+      }
+    }
+    else
+    {
+      recv_index = send_index + rem_data;
+      for (i = send_index; i < recv_index; ++i)
+      {
+        send_size += rcounts[i];
+      }
+      for (i = recv_index; i < last_index; ++i)
+      {
+        recv_size += rcounts[i];
+      }
+    }
+
+    //printf("rank %d send size %d reciv size %d send index %d reciv index %d dist %d\n", rank, send_size, recv_size, send_index, recv_index, dist_mask);
+
+    if (recv_size > 0)
+    {
+      err = MPI_Irecv(recv_buff_head + disps[recv_index] * extent, recv_size, dtype, peer, 0, comm, &req);
+      if (err != MPI_SUCCESS) goto cleanup;
+    }
+    if (send_size > 0)
+    {
+      err = MPI_Send(result_buff_head + disps[send_index] * extent, send_size, dtype, peer, 0, comm);
+      if (err != MPI_SUCCESS) goto cleanup;
+    }
+    
+    if(recv_size > 0) {
+      err = MPI_Wait(&req, MPI_STATUS_IGNORE);
+      if(MPI_SUCCESS != err) { goto cleanup; }
+
+      // todo: make gpu compatible
+    #ifdef PICO_MPI_CUDA_AWARE
+      printf("gpu reduce \n");
+      reduce_wrapper(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size);
+    #else
+      MPI_Reduce_local(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size, dtype, op);
+    #endif
+    }
+
+    send_index = recv_index;
+    last_index = recv_index + rem_data;
+    rem_data >>= 1;
+  }
+
+  int inverse = inverse_rank(size, rank);
+  if(rank != inverse) {
+    /* send result to correct rank's recv buffer */
+    err = MPI_Sendrecv(result_buff_head + disps[inverse] * extent, rcounts[inverse], dtype, inverse, 0,
+                       rbuf, rcounts[rank], dtype, inverse, 0,
+                       comm, MPI_STATUS_IGNORE);
+    if(MPI_SUCCESS != err) {
+      goto cleanup;
+    }
+  } else {
+    /* copy local results from results buffer into real receive buffer */
+    err = copy_buffer_different_dt(result_buff_head + disps[rank] * extent, rcounts[rank],
+                                    dtype, rbuf, rcounts[rank], dtype);
+    if(MPI_SUCCESS != err) {
+      goto cleanup;
+    }
+  }
+
+cleanup:
+  if(NULL != disps) free(disps);
+#ifdef PICO_MPI_CUDA_AWARE
+  if(NULL != recv_temp_buff) BINE_CUDA_CHECK(cudaFree(recv_temp_buff));
+  if(NULL != result_temp_buff) BINE_CUDA_CHECK(cudaFree(result_temp_buff));
+#else
+  if(NULL != recv_temp_buff) free(recv_temp_buff);
+  if(NULL != result_temp_buff) free(result_temp_buff);
+#endif
+  return err;
+}
+
 int reduce_scatter_recursivehalving(const void *sbuf, void *rbuf, const int rcounts[],
                                     MPI_Datatype dtype, MPI_Op op, MPI_Comm comm)
 {
