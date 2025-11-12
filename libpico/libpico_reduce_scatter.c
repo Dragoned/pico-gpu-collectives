@@ -26,13 +26,6 @@ int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const in
 
   err = MPI_Comm_size(comm, &size);
   err = MPI_Comm_rank(comm, &rank);
-
-  /*if (rank == 0)
-  {
-    for(i = 0; i < size; i++) {
-      printf("rank %d reciv %d\n", i, rcounts[i]);
-    }
-  }*/
   
   /* determinate data displacment  */
   disps = calloc(size, sizeof(ptrdiff_t));

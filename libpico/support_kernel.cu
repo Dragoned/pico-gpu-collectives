@@ -170,7 +170,7 @@ MAKE_KERNEL_BXOR(char, bxor_char)
 
 typedef void (*kernel_func)(void *, void *, int);
 
-enum ReduceOp mpi_to_reduce_op(MPI_Op op)
+static inline enum ReduceOp mpi_to_reduce_op(MPI_Op op)
 {
   if (MPI_MAX == op)
     return R_MAX;
@@ -195,7 +195,7 @@ enum ReduceOp mpi_to_reduce_op(MPI_Op op)
   return R_UNNOWN_OP;
 }
 
-enum ReduceType mpi_to_redcue_type(MPI_Datatype dtype)
+static inline enum ReduceType mpi_to_redcue_type(MPI_Datatype dtype)
 {
   if (MPI_INT8_T == dtype)
     return R_INT8;
@@ -251,6 +251,12 @@ int reduce_wrapper(void *inbuff, void *inoutbuff, int count, MPI_Datatype dtype,
     return MPI_ERR_UNSUPPORTED_OPERATION;
 
   kfunc<<<1, count>>>(inbuff, inoutbuff, count);
+  cudaError_t err = cudaGetLastError();
+  if( err != cudaSuccess ) {
+    fprintf(stderr, "Failed: Cuda error %s:%d '%s'\n",__FILE__,__LINE__,cudaGetErrorString(err));
+    exit(EXIT_FAILURE);
+  }
+
   cudaDeviceSynchronize();
   return MPI_SUCCESS;
 }
