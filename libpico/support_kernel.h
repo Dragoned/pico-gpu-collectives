@@ -23,10 +23,10 @@ enum ReduceType {
 };
 
 enum ReduceOp {
-    R_MAX,
-    R_MIN,
     R_SUM,
     R_PROD,
+    R_MAX,
+    R_MIN,
     R_LAND,
     R_BAND,
     R_LOR,

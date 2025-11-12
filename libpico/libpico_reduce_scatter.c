@@ -134,7 +134,8 @@ int reduce_scatter_recursive_doubling_gpu(const void *sbuf, void *rbuf, const in
 
       // todo: make gpu compatible
     #ifdef PICO_MPI_CUDA_AWARE
-      reduce_wrapper(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size, dtype, op);
+      err = reduce_wrapper(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size, dtype, op);
+      if (err != MPI_SUCCESS) goto cleanup;
     #else
       MPI_Reduce_local(recv_buff_head + disps[recv_index] * extent, result_buff_head + disps[recv_index] * extent, recv_size, dtype, op);
     #endif
