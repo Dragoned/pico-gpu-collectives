@@ -1,9 +1,12 @@
 #include "support_kernel.h"
 
+#define MAX_THERAD 1024
+#define GLOBAL_IDX (blockIdx.x * blockDim.x + threadIdx.x)
+
 #define MAKE_KERNEL_MAX(type, name)                                                      \
   __global__ void name(type *inbuff, type *inountbuff, int n)                            \
   {                                                                                      \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;                                     \
+    int idx = GLOBAL_IDX;                                     \
     if (idx < n)                                                                         \
       inountbuff[idx] = (inbuff[idx] > inountbuff[idx]) ? inbuff[idx] : inountbuff[idx]; \
   }
@@ -11,7 +14,7 @@
 #define MAKE_KERNEL_MIN(type, name)                                                      \
   __global__ void name(type *inbuff, type *inountbuff, int n)                            \
   {                                                                                      \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;                                     \
+    int idx = GLOBAL_IDX;                                     \
     if (idx < n)                                                                         \
       inountbuff[idx] = (inbuff[idx] < inountbuff[idx]) ? inbuff[idx] : inountbuff[idx]; \
   }
@@ -19,7 +22,7 @@
 #define MAKE_KERNEL_SUM(type, name)                           \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] + inountbuff[idx];        \
   }
@@ -27,7 +30,7 @@
 #define MAKE_KERNEL_PROD(type, name)                          \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] * inountbuff[idx];        \
   }
@@ -35,7 +38,7 @@
 #define MAKE_KERNEL_LAND(type, name)                          \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] && inountbuff[idx];       \
   }
@@ -43,7 +46,7 @@
 #define MAKE_KERNEL_LOR(type, name)                           \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] || inountbuff[idx];       \
   }
@@ -51,7 +54,7 @@
 #define MAKE_KERNEL_LXOR(type, name)                          \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] != inountbuff[idx];       \
   }
@@ -59,21 +62,21 @@
 #define MAKE_KERNEL_BAND(type, name)                          \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] & inountbuff[idx];        \
   }
 #define MAKE_KERNEL_BOR(type, name)                           \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] | inountbuff[idx];        \
   }
 #define MAKE_KERNEL_BXOR(type, name)                          \
   __global__ void name(type *inbuff, type *inountbuff, int n) \
   {                                                           \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;          \
+    int idx = GLOBAL_IDX;          \
     if (idx < n)                                              \
       inountbuff[idx] = inbuff[idx] ^ inountbuff[idx];        \
   }
@@ -246,11 +249,14 @@ int reduce_wrapper(void *inbuff, void *inoutbuff, int count, MPI_Datatype dtype,
     return MPI_ERR_UNKNOWN;
   }
 
+  int blockSize = count < MAX_THERAD ? count : MAX_THERAD;
+  int gridSize = (count + blockSize - 1) / blockSize;
+
   kernel_func kfunc = kernels[r_type][r_op];
   if (kfunc == NULL)
     return MPI_ERR_UNSUPPORTED_OPERATION;
 
-  kfunc<<<1, count>>>(inbuff, inoutbuff, count);
+  kfunc<<<blockSize, gridSize>>>(inbuff, inoutbuff, count);
   cudaError_t err = cudaGetLastError();
   if( err != cudaSuccess ) {
     fprintf(stderr, "Failed: Cuda error %s:%d '%s'\n",__FILE__,__LINE__,cudaGetErrorString(err));
