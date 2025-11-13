@@ -49,7 +49,37 @@
       "external"
     ]
   },
-  "recursivedoubling_hierarchy_over": {
+  "recursivedoubling_hierarchy_v1_over": {
+    "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
+    "version": "1.0.0",
+    "selection": "pico",
+    "constraints": [
+      {
+        "key": "count",
+        "conditions": [
+          {
+            "operator": ">=",
+            "value": "comm_sz"
+          }
+        ]
+      },
+      {
+        "key": "comm_sz",
+        "conditions": [
+          {
+            "operator": "is_power_of_two",
+            "value": true
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "recursive_doubling",
+      "cuda",
+      "external"
+    ]
+  },
+  "recursivedoubling_hierarchy_v2_over": {
     "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
     "version": "1.0.0",
     "selection": "pico",
