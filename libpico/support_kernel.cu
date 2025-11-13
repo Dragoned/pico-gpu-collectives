@@ -256,7 +256,7 @@ int reduce_wrapper(void *inbuff, void *inoutbuff, int count, MPI_Datatype dtype,
   if (kfunc == NULL)
     return MPI_ERR_UNSUPPORTED_OPERATION;
 
-  kfunc<<<blockSize, gridSize>>>(inbuff, inoutbuff, count);
+  kfunc<<<gridSize, blockSize>>>(inbuff, inoutbuff, count);
   cudaError_t err = cudaGetLastError();
   if( err != cudaSuccess ) {
     fprintf(stderr, "Failed: Cuda error %s:%d '%s'\n",__FILE__,__LINE__,cudaGetErrorString(err));
