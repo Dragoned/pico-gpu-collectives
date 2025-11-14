@@ -286,6 +286,7 @@ class OutputLevel(Enum):
     FULL = 'full'
     STATISTICS = 'statistics'
     MINIMAL = 'minimal'
+    SUMMARIZED = 'Summarized'
     SUMMARY = 'summary'
 
     @classmethod

@@ -119,6 +119,7 @@ class ConfigureStep(StepScreen):
             ("Statistics", OutputLevel.STATISTICS),
             ("Minimal", OutputLevel.MINIMAL),
             ("Summary", OutputLevel.SUMMARY),
+            ("Summarized", OutputLevel.SUMMARIZED),
         ]
 
         buffer_items =  [Selection(f"{label.replace('Byte', '  B')}", self.__parse_size(label), True) for label in self.__buffer_sizes]
