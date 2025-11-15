@@ -202,3 +202,5 @@ timestamp,test_id,nnodes,tasks_per_node,collective_type,mpi_lib,mpi_lib_version,
 2025_11_05___17_07_48,1,4,4,ALLGATHER,OMPI,4.1.6,no,null,null,summarized,,null
 2025_11_13___11_37_42,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,test reduce scatter gpu
 2025_11_13___11_37_42,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,test reduce scatter gpu
+2025_11_14___16_37_22,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,test reduce scatter hierarchical gpu
+2025_11_14___16_37_22,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,test reduce scatter hierarchical gpu
