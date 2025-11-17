@@ -90,6 +90,7 @@ int reduce_bine_bdw(REDUCE_MPI_ARGS);
 
 int reduce_scatter_recursive_doubling_gpu(REDUCE_SCATTER_MPI_ARGS);
 int reduce_scatter_recursive_doubling_hierarchical_v1(REDUCE_SCATTER_MPI_ARGS);
+int reduce_scatter_recursive_doubling_hierarchical_v2(REDUCE_SCATTER_MPI_ARGS);
 int reduce_scatter_recursivehalving(REDUCE_SCATTER_MPI_ARGS);
 int reduce_scatter_recursive_distance_doubling(REDUCE_SCATTER_MPI_ARGS);
 int reduce_scatter_ring(REDUCE_SCATTER_MPI_ARGS);
