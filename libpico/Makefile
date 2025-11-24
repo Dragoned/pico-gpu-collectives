@@ -1,4 +1,4 @@
-CFLAGS = $(CFLAGS_COMMON)
+CFLAGS = $(CFLAGS_COMMON) -DGPU_ON_NODE=${TASKS_PER_NODE:1}
 NVCC ?= nvcc
 
 NVCCFLAGS := -O3 -Xcompiler "-fPIC" -I$(PICO_DIR)/include -I.

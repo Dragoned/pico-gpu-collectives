@@ -15,8 +15,6 @@
 #include "support_kernel.h"
 #endif
 
-#define GPU_ON_NODE 4
-
 int reduce_scatter_recursive_doubling_hierarchical_v2(const void *sbuf, void *rbuf, const int rcounts[],
                                                       MPI_Datatype dtype, MPI_Op op, MPI_Comm comm)
 {

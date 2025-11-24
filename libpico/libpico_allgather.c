@@ -12,8 +12,6 @@
 #include "libpico.h"
 #include "libpico_utils.h"
 
-#define GPU_ON_NODE 4
-
 // evry rank partecipate in globbal comunication
 int allgather_recursivedoubling_hierarchy_v2(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                                           void *rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
