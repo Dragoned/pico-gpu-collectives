@@ -246,6 +246,7 @@ static inline reduce_scatter_func_ptr get_reduce_scatter_function (const char *a
   CHECK_STR(algorithm, "recursive_distance_doubling_gpu_over", reduce_scatter_recursive_doubling_gpu);
   CHECK_STR(algorithm, "recursive_distance_doubling_hierarchical_v1_over", reduce_scatter_recursive_doubling_hierarchical_v1);
   CHECK_STR(algorithm, "recursive_distance_doubling_hierarchical_v2_over", reduce_scatter_recursive_doubling_hierarchical_v2);
+  CHECK_STR(algorithm, "recursive_distance_doubling_hierarchical_v3_over", reduce_scatter_recursive_doubling_hierarchical_v3);
   CHECK_STR(algorithm, "recursive_halving_over", reduce_scatter_recursivehalving);
   CHECK_STR(algorithm, "recursive_distance_doubling_over", reduce_scatter_recursive_distance_doubling);
   CHECK_STR(algorithm, "ring_over", reduce_scatter_ring);

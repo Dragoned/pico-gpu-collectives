@@ -3,82 +3,162 @@
 #define MAX_THERAD 1024
 #define GLOBAL_IDX (blockIdx.x * blockDim.x + threadIdx.x)
 
-#define MAKE_KERNEL_MAX(type, name)                                                      \
-  __global__ void name(type *inbuff, type *inountbuff, int n)                            \
-  {                                                                                      \
-    int idx = GLOBAL_IDX;                                     \
-    if (idx < n)                                                                         \
-      inountbuff[idx] = (inbuff[idx] > inountbuff[idx]) ? inbuff[idx] : inountbuff[idx]; \
+#define MAKE_KERNEL_MAX(type, name)                                                                          \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups)                                 \
+  {                                                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                                                \
+    int idx = GLOBAL_IDX;                                                                                    \
+    int offset = 0;                                                                                          \
+    if (idx < size)                                                                                          \
+    {                                                                                                        \
+      for (int i = 0; i < groups; i++)                                                                       \
+      {                                                                                                      \
+        inountbuff[idx] = (inbuff[idx + offset] > inountbuff[idx]) ? inbuff[idx + offset] : inountbuff[idx]; \
+        offset += size;                                                                                      \
+      }                                                                                                      \
+    }                                                                                                        \
   }
 
-#define MAKE_KERNEL_MIN(type, name)                                                      \
-  __global__ void name(type *inbuff, type *inountbuff, int n)                            \
-  {                                                                                      \
-    int idx = GLOBAL_IDX;                                     \
-    if (idx < n)                                                                         \
-      inountbuff[idx] = (inbuff[idx] < inountbuff[idx]) ? inbuff[idx] : inountbuff[idx]; \
+#define MAKE_KERNEL_MIN(type, name)                                                                          \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups)                                 \
+  {                                                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                                                \
+    int idx = GLOBAL_IDX;                                                                                    \
+    int offset = 0;                                                                                          \
+    if (idx < size)                                                                                          \
+    {                                                                                                        \
+      for (int i = 0; i < groups; i++)                                                                       \
+      {                                                                                                      \
+        inountbuff[idx] = (inbuff[idx + offset] < inountbuff[idx]) ? inbuff[idx + offset] : inountbuff[idx]; \
+        offset += size;                                                                                      \
+      }                                                                                                      \
+    }                                                                                                        \
   }
 
-#define MAKE_KERNEL_SUM(type, name)                           \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] + inountbuff[idx];        \
+#define MAKE_KERNEL_SUM(type, name)                                          \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] + inountbuff[idx];            \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
 
-#define MAKE_KERNEL_PROD(type, name)                          \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] * inountbuff[idx];        \
+#define MAKE_KERNEL_PROD(type, name)                                         \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] * inountbuff[idx];            \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
 
-#define MAKE_KERNEL_LAND(type, name)                          \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] && inountbuff[idx];       \
+#define MAKE_KERNEL_LAND(type, name)                                         \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] && inountbuff[idx];           \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
 
-#define MAKE_KERNEL_LOR(type, name)                           \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] || inountbuff[idx];       \
+#define MAKE_KERNEL_LOR(type, name)                                          \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] || inountbuff[idx];           \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
 
-#define MAKE_KERNEL_LXOR(type, name)                          \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] != inountbuff[idx];       \
+#define MAKE_KERNEL_LXOR(type, name)                                         \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] != inountbuff[idx];           \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
 
-#define MAKE_KERNEL_BAND(type, name)                          \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] & inountbuff[idx];        \
+#define MAKE_KERNEL_BAND(type, name)                                         \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] & inountbuff[idx];            \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
-#define MAKE_KERNEL_BOR(type, name)                           \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] | inountbuff[idx];        \
+#define MAKE_KERNEL_BOR(type, name)                                          \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] | inountbuff[idx];            \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
-#define MAKE_KERNEL_BXOR(type, name)                          \
-  __global__ void name(type *inbuff, type *inountbuff, int n) \
-  {                                                           \
-    int idx = GLOBAL_IDX;          \
-    if (idx < n)                                              \
-      inountbuff[idx] = inbuff[idx] ^ inountbuff[idx];        \
+#define MAKE_KERNEL_BXOR(type, name)                                         \
+  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
+  {                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                \
+    int idx = GLOBAL_IDX;                                                    \
+    int offset = 0;                                                          \
+    if (idx < size)                                                          \
+    {                                                                        \
+      for (int i = 0; i < groups; i++)                                       \
+      {                                                                      \
+        inountbuff[idx] = inbuff[idx + offset] ^ inountbuff[idx];            \
+        offset += size;                                                      \
+      }                                                                      \
+    }                                                                        \
   }
 
 // int8
@@ -171,7 +251,7 @@ MAKE_KERNEL_BOR(char, bor_char)
 MAKE_KERNEL_LXOR(char, lxor_char)
 MAKE_KERNEL_BXOR(char, bxor_char)
 
-typedef void (*kernel_func)(void *, void *, int);
+typedef void (*kernel_func)(void *, void *, int, int);
 
 static inline enum ReduceOp mpi_to_reduce_op(MPI_Op op)
 {
@@ -241,6 +321,11 @@ kernel_func kernels[R_TYPE_NUM][R_OP_NUM] = {
 
 int reduce_wrapper(void *inbuff, void *inoutbuff, int count, MPI_Datatype dtype, MPI_Op op)
 {
+  return reduce_wrapper_grops(inbuff, inoutbuff, count, 1, dtype, op);
+}
+
+int reduce_wrapper_grops(void *inbuff, void *inoutbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op)
+{
   enum ReduceOp r_op = mpi_to_reduce_op(op);
   enum ReduceType r_type = mpi_to_redcue_type(dtype);
 
@@ -249,17 +334,18 @@ int reduce_wrapper(void *inbuff, void *inoutbuff, int count, MPI_Datatype dtype,
     return MPI_ERR_UNKNOWN;
   }
 
-  int blockSize = count < MAX_THERAD ? count : MAX_THERAD;
-  int gridSize = (count + blockSize - 1) / blockSize;
+  int blockSize = group_size < MAX_THERAD ? group_size : MAX_THERAD;
+  int gridSize = (group_size + blockSize - 1) / blockSize;
 
   kernel_func kfunc = kernels[r_type][r_op];
   if (kfunc == NULL)
     return MPI_ERR_UNSUPPORTED_OPERATION;
 
-  kfunc<<<gridSize, blockSize>>>(inbuff, inoutbuff, count);
+  kfunc<<<gridSize, blockSize>>>(inbuff, inoutbuff, group_size, groups);
   cudaError_t err = cudaGetLastError();
-  if( err != cudaSuccess ) {
-    fprintf(stderr, "Failed: Cuda error %s:%d '%s'\n",__FILE__,__LINE__,cudaGetErrorString(err));
+  if (err != cudaSuccess)
+  {
+    fprintf(stderr, "Failed: Cuda error %s:%d '%s'\n", __FILE__, __LINE__, cudaGetErrorString(err));
     exit(EXIT_FAILURE);
   }
 

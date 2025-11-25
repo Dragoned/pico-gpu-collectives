@@ -39,6 +39,8 @@ enum ReduceOp {
 
 int reduce_wrapper(void* inbuff, void* inoutbuff, int count, MPI_Datatype dtype, MPI_Op op);
 
+int reduce_wrapper_grops(void *inbuff, void *inoutbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op);
+
 #ifdef __cplusplus
 }
 #endif
