@@ -24,9 +24,10 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   char *recv_buff_head, *result_buff_head;
   int data_sub_group, local_inverse, local_rank;
   int node_rank, node_size, peer_node;
-  int peer, dist_mask, rem_data, local_disp;
+  int peer, dist_mask, rem_data;
   int send_index = 0, recv_index = 0;
   size_t send_size, recv_size;
+  ptrdiff_t *disps = NULL;
   MPI_Request send_req[GPU_ON_NODE];
   MPI_Request recv_req[GPU_ON_NODE];
   int req_index, node_offset;
@@ -51,10 +52,22 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     data_sub_group += rcounts[local_inverse * node_size + i] ;
   }
 
-  local_disp = 0;
-  for (i = 0; i < local_inverse * GPU_ON_NODE; i++)
+  /* determinate data displacment  */
+  disps = calloc(size, sizeof(ptrdiff_t));
+  if (disps == NULL)
+    return MPI_ERR_NO_MEM;
+
+  disps[0] = 0;
+  for (i = 0; i < (size - 1); i++)
   {
-    local_disp += rcounts[i];
+    disps[i + 1] = disps[i] + rcounts[i];
+  }
+
+  /* short cut the trivial case */
+  if (0 == disps[size - 1] + rcounts[size - 1])
+  {
+    free(disps);
+    return MPI_SUCCESS;
   }
 
   result_buffer_size = true_extent + extent * data_sub_group;
@@ -87,7 +100,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   /* recursive doubling local */
   recv_size = send_size = data_sub_group;
 
-  err = COPY_BUFF_DIFF_DT(sbuf + local_disp * extent, recv_size, dtype, result_buff_head, recv_size, dtype);
+  err = COPY_BUFF_DIFF_DT(sbuf + disps[local_inverse * node_size] * extent, recv_size, dtype, result_buff_head, recv_size, dtype);
   if (err != MPI_SUCCESS)
     goto cleanup;
 
@@ -101,7 +114,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
 
     local_inverse = inverse_rank(GPU_ON_NODE, i);
 
-    err = MPI_Isend(sbuf + local_disp * extent, send_size, dtype, peer, 0, comm, &send_req[req_index]);
+    err = MPI_Isend(sbuf + disps[local_inverse * node_size] * extent, send_size, dtype, peer, 0, comm, &send_req[req_index]);
     if (err != MPI_SUCCESS)
       goto cleanup;
 
@@ -134,9 +147,9 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     }
   }
 #endif
+
   /* recursive doubling globbal */
   int g_send_index, g_recv_index, g_last_index;
-  local_disp = 0;
   send_index = recv_index = 0;
   rem_data = node_size >> 1;
   g_send_index = g_recv_index = local_inverse * node_size;
@@ -151,7 +164,6 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
 
     if (node_rank < peer_node)
     {
-      send_index = recv_index + rem_data;
       g_send_index = g_recv_index + rem_data;
       for (i = g_send_index; i < g_last_index; ++i)
       {
@@ -161,10 +173,10 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
       {
         recv_size += rcounts[i];
       }
+      send_index = recv_index + recv_size;
     }
     else
     {
-      recv_index = send_index + rem_data;
       g_recv_index = g_send_index + rem_data;
       for (i = g_send_index; i < g_recv_index; ++i)
       {
@@ -174,7 +186,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
       {
         recv_size += rcounts[i];
       }
-      local_disp += send_size;
+      recv_index = send_index + send_size;
     }
 
     if (recv_size > 0)
@@ -185,7 +197,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     }
     if (send_size > 0)
     {
-      err = MPI_Send(result_buff_head + local_disp * extent, send_size, dtype, peer, 0, comm);
+      err = MPI_Send(result_buff_head + send_index * extent, send_size, dtype, peer, 0, comm);
       if (err != MPI_SUCCESS)
         goto cleanup;
     }    
@@ -200,11 +212,11 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
 
       // todo: make gpu compatible
 #ifdef PICO_MPI_CUDA_AWARE
-      err = reduce_wrapper(recv_buff_head, result_buff_head + local_disp * extent, recv_size, dtype, op);
+      err = reduce_wrapper(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
       if (err != MPI_SUCCESS)
         goto cleanup;
 #else
-      MPI_Reduce_local(recv_buff_head, result_buff_head + local_disp * extent, recv_size, dtype, op);
+      MPI_Reduce_local(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
 #endif
     }
 
@@ -218,7 +230,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   if (rank != inverse)
   {
     /* send result to correct rank's recv buffer */
-    err = MPI_Sendrecv(result_buff_head + local_disp * extent, rcounts[inverse], dtype, inverse, 0,
+    err = MPI_Sendrecv(result_buff_head + recv_index * extent, rcounts[inverse], dtype, inverse, 0,
                        rbuf, rcounts[rank], dtype, inverse, 0,
                        comm, MPI_STATUS_IGNORE);
     if (MPI_SUCCESS != err)
@@ -229,7 +241,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   else
   {
     /* copy local results from results buffer into real receive buffer */
-    err = COPY_BUFF_DIFF_DT(result_buff_head + local_disp * extent, rcounts[rank],
+    err = COPY_BUFF_DIFF_DT(result_buff_head + recv_index * extent, rcounts[rank],
                             dtype, rbuf, rcounts[rank], dtype);
     if (MPI_SUCCESS != err)
     {
@@ -238,6 +250,8 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   }
 
 cleanup:
+  if (NULL != disps)
+    free(disps);
 #ifdef PICO_MPI_CUDA_AWARE
   if (NULL != recv_temp_buff)
     BINE_CUDA_CHECK(cudaFree(recv_temp_buff));
