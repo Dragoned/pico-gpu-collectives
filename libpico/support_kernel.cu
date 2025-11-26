@@ -3,253 +3,132 @@
 #define MAX_THERAD 1024
 #define GLOBAL_IDX (blockIdx.x * blockDim.x + threadIdx.x)
 
-#define MAKE_KERNEL_MAX(type, name)                                                                          \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups)                                 \
-  {                                                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                                                \
-    int idx = GLOBAL_IDX;                                                                                    \
-    int offset = 0;                                                                                          \
-    if (idx < size)                                                                                          \
-    {                                                                                                        \
-      for (int i = 0; i < groups; i++)                                                                       \
-      {                                                                                                      \
-        inountbuff[idx] = (inbuff[idx + offset] > inountbuff[idx]) ? inbuff[idx + offset] : inountbuff[idx]; \
-        offset += size;                                                                                      \
-      }                                                                                                      \
-    }                                                                                                        \
+#define MAKE_KERNEL_OP(type, name, OP)                                        \
+  __global__ void name(type *inbuff, type *inoutbuff, int size, int groups)   \
+  {                                                                           \
+    __shared__ type support_buff[MAX_THERAD];                                 \
+    int gidx = GLOBAL_IDX, lidx = threadIdx.x;                                \
+    int offset = 0;                                                           \
+    if (gidx < size)                                                          \
+    {                                                                         \
+      if (groups > 1)                                                         \
+      {                                                                       \
+        support_buff[lidx] = inoutbuff[gidx];                                 \
+        __syncthreads();                                                      \
+        for (int i = 0; i < groups; i++)                                      \
+        {                                                                     \
+          support_buff[lidx] = OP(inbuff[gidx + offset], support_buff[lidx]); \
+          offset += size;                                                     \
+        }                                                                     \
+        inoutbuff[gidx] = support_buff[lidx];                                 \
+      }                                                                       \
+      else                                                                    \
+      {                                                                       \
+        inoutbuff[gidx] = OP(inbuff[gidx], inoutbuff[gidx]);                  \
+      }                                                                       \
+    }                                                                         \
   }
 
-#define MAKE_KERNEL_MIN(type, name)                                                                          \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups)                                 \
-  {                                                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                                                \
-    int idx = GLOBAL_IDX;                                                                                    \
-    int offset = 0;                                                                                          \
-    if (idx < size)                                                                                          \
-    {                                                                                                        \
-      for (int i = 0; i < groups; i++)                                                                       \
-      {                                                                                                      \
-        inountbuff[idx] = (inbuff[idx + offset] < inountbuff[idx]) ? inbuff[idx + offset] : inountbuff[idx]; \
-        offset += size;                                                                                      \
-      }                                                                                                      \
-    }                                                                                                        \
-  }
-
-#define MAKE_KERNEL_SUM(type, name)                                          \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] + inountbuff[idx];            \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-
-#define MAKE_KERNEL_PROD(type, name)                                         \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] * inountbuff[idx];            \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-
-#define MAKE_KERNEL_LAND(type, name)                                         \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] && inountbuff[idx];           \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-
-#define MAKE_KERNEL_LOR(type, name)                                          \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] || inountbuff[idx];           \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-
-#define MAKE_KERNEL_LXOR(type, name)                                         \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] != inountbuff[idx];           \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-
-#define MAKE_KERNEL_BAND(type, name)                                         \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] & inountbuff[idx];            \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-#define MAKE_KERNEL_BOR(type, name)                                          \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] | inountbuff[idx];            \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
-#define MAKE_KERNEL_BXOR(type, name)                                         \
-  __global__ void name(type *inbuff, type *inountbuff, int size, int groups) \
-  {                                                                          \
-    __shared__ type support_buff[MAX_THERAD];                                \
-    int idx = GLOBAL_IDX;                                                    \
-    int offset = 0;                                                          \
-    if (idx < size)                                                          \
-    {                                                                        \
-      for (int i = 0; i < groups; i++)                                       \
-      {                                                                      \
-        inountbuff[idx] = inbuff[idx + offset] ^ inountbuff[idx];            \
-        offset += size;                                                      \
-      }                                                                      \
-    }                                                                        \
-  }
+#define MAX_OP(a, b) ((a) > (b) ? (a) : (b))
+#define MIN_OP(a, b) ((a) < (b) ? (a) : (b))
+#define SUM_OP(a, b) ((a) + (b))
+#define MUL_OP(a, b) ((a) * (b))
+#define LAND_OP(a, b) ((a) && (b))
+#define LOR_OP(a, b) ((a) || (b))
+#define LXOR_OP(a, b) ((a) != (b))
+#define BAND_OP(a, b) ((a) & (b))
+#define BOR_OP(a, b) ((a) | (b))
+#define BXOR_OP(a, b) ((a) ^ (b))
 
 // int8
-MAKE_KERNEL_SUM(int8_t, sum_int8)
-MAKE_KERNEL_PROD(int8_t, prod_int8)
-MAKE_KERNEL_MAX(int8_t, max_int8)
-MAKE_KERNEL_MIN(int8_t, min_int8)
-MAKE_KERNEL_LAND(int8_t, land_int8)
-MAKE_KERNEL_BAND(int8_t, band_int8)
-MAKE_KERNEL_LOR(int8_t, lor_int8)
-MAKE_KERNEL_BOR(int8_t, bor_int8)
-MAKE_KERNEL_LXOR(int8_t, lxor_int8)
-MAKE_KERNEL_BXOR(int8_t, bxor_int8)
+MAKE_KERNEL_OP(int8_t, sum_int8, SUM_OP)
+MAKE_KERNEL_OP(int8_t, prod_int8, MUL_OP)
+MAKE_KERNEL_OP(int8_t, max_int8, MAX_OP)
+MAKE_KERNEL_OP(int8_t, min_int8, MIN_OP)
+MAKE_KERNEL_OP(int8_t, land_int8, LAND_OP)
+MAKE_KERNEL_OP(int8_t, band_int8, BAND_OP)
+MAKE_KERNEL_OP(int8_t, lor_int8, LOR_OP)
+MAKE_KERNEL_OP(int8_t, bor_int8, BOR_OP)
+MAKE_KERNEL_OP(int8_t, lxor_int8, LXOR_OP)
+MAKE_KERNEL_OP(int8_t, bxor_int8, BXOR_OP)
 
 // int16
-MAKE_KERNEL_SUM(int16_t, sum_int16)
-MAKE_KERNEL_PROD(int16_t, prod_int16)
-MAKE_KERNEL_MAX(int16_t, max_int16)
-MAKE_KERNEL_MIN(int16_t, min_int16)
-MAKE_KERNEL_LAND(int16_t, land_int16)
-MAKE_KERNEL_BAND(int16_t, band_int16)
-MAKE_KERNEL_LOR(int16_t, lor_int16)
-MAKE_KERNEL_BOR(int16_t, bor_int16)
-MAKE_KERNEL_LXOR(int16_t, lxor_int16)
-MAKE_KERNEL_BXOR(int16_t, bxor_int16)
+MAKE_KERNEL_OP(int16_t, sum_int16, SUM_OP)
+MAKE_KERNEL_OP(int16_t, prod_int16, MUL_OP)
+MAKE_KERNEL_OP(int16_t, max_int16, MAX_OP)
+MAKE_KERNEL_OP(int16_t, min_int16, MIN_OP)
+MAKE_KERNEL_OP(int16_t, land_int16, LAND_OP)
+MAKE_KERNEL_OP(int16_t, band_int16, BAND_OP)
+MAKE_KERNEL_OP(int16_t, lor_int16, LOR_OP)
+MAKE_KERNEL_OP(int16_t, bor_int16, BOR_OP)
+MAKE_KERNEL_OP(int16_t, lxor_int16, LXOR_OP)
+MAKE_KERNEL_OP(int16_t, bxor_int16, BXOR_OP)
 
 // int32
-MAKE_KERNEL_SUM(int32_t, sum_int32)
-MAKE_KERNEL_PROD(int32_t, prod_int32)
-MAKE_KERNEL_MAX(int32_t, max_int32)
-MAKE_KERNEL_MIN(int32_t, min_int32)
-MAKE_KERNEL_LAND(int32_t, land_int32)
-MAKE_KERNEL_BAND(int32_t, band_int32)
-MAKE_KERNEL_LOR(int32_t, lor_int32)
-MAKE_KERNEL_BOR(int32_t, bor_int32)
-MAKE_KERNEL_LXOR(int32_t, lxor_int32)
-MAKE_KERNEL_BXOR(int32_t, bxor_int32)
+MAKE_KERNEL_OP(int32_t, sum_int32, SUM_OP)
+MAKE_KERNEL_OP(int32_t, prod_int32, MUL_OP)
+MAKE_KERNEL_OP(int32_t, max_int32, MAX_OP)
+MAKE_KERNEL_OP(int32_t, min_int32, MIN_OP)
+MAKE_KERNEL_OP(int32_t, land_int32, LAND_OP)
+MAKE_KERNEL_OP(int32_t, band_int32, BAND_OP)
+MAKE_KERNEL_OP(int32_t, lor_int32, LOR_OP)
+MAKE_KERNEL_OP(int32_t, bor_int32, BOR_OP)
+MAKE_KERNEL_OP(int32_t, lxor_int32, LXOR_OP)
+MAKE_KERNEL_OP(int32_t, bxor_int32, BXOR_OP)
 
 // int64
-MAKE_KERNEL_SUM(int64_t, sum_int64)
-MAKE_KERNEL_PROD(int64_t, prod_int64)
-MAKE_KERNEL_MAX(int64_t, max_int64)
-MAKE_KERNEL_MIN(int64_t, min_int64)
-MAKE_KERNEL_LAND(int64_t, land_int64)
-MAKE_KERNEL_BAND(int64_t, band_int64)
-MAKE_KERNEL_LOR(int64_t, lor_int64)
-MAKE_KERNEL_BOR(int64_t, bor_int64)
-MAKE_KERNEL_LXOR(int64_t, lxor_int64)
-MAKE_KERNEL_BXOR(int64_t, bxor_int64)
+MAKE_KERNEL_OP(int64_t, sum_int64, SUM_OP)
+MAKE_KERNEL_OP(int64_t, prod_int64, MUL_OP)
+MAKE_KERNEL_OP(int64_t, max_int64, MAX_OP)
+MAKE_KERNEL_OP(int64_t, min_int64, MIN_OP)
+MAKE_KERNEL_OP(int64_t, land_int64, LAND_OP)
+MAKE_KERNEL_OP(int64_t, band_int64, BAND_OP)
+MAKE_KERNEL_OP(int64_t, lor_int64, LOR_OP)
+MAKE_KERNEL_OP(int64_t, bor_int64, BOR_OP)
+MAKE_KERNEL_OP(int64_t, lxor_int64, LXOR_OP)
+MAKE_KERNEL_OP(int64_t, bxor_int64, BXOR_OP)
 
 // int
-MAKE_KERNEL_SUM(int, sum_int)
-MAKE_KERNEL_PROD(int, prod_int)
-MAKE_KERNEL_MAX(int, max_int)
-MAKE_KERNEL_MIN(int, min_int)
-MAKE_KERNEL_LAND(int, land_int)
-MAKE_KERNEL_BAND(int, band_int)
-MAKE_KERNEL_LOR(int, lor_int)
-MAKE_KERNEL_BOR(int, bor_int)
-MAKE_KERNEL_LXOR(int, lxor_int)
-MAKE_KERNEL_BXOR(int, bxor_int)
+MAKE_KERNEL_OP(int, sum_int, SUM_OP)
+MAKE_KERNEL_OP(int, prod_int, MUL_OP)
+MAKE_KERNEL_OP(int, max_int, MAX_OP)
+MAKE_KERNEL_OP(int, min_int, MIN_OP)
+MAKE_KERNEL_OP(int, land_int, LAND_OP)
+MAKE_KERNEL_OP(int, band_int, BAND_OP)
+MAKE_KERNEL_OP(int, lor_int, LOR_OP)
+MAKE_KERNEL_OP(int, bor_int, BOR_OP)
+MAKE_KERNEL_OP(int, lxor_int, LXOR_OP)
+MAKE_KERNEL_OP(int, bxor_int, BXOR_OP)
 
 // float
-MAKE_KERNEL_SUM(float, sum_float)
-MAKE_KERNEL_PROD(float, prod_float)
-MAKE_KERNEL_MAX(float, max_float)
-MAKE_KERNEL_MIN(float, min_float)
-MAKE_KERNEL_LAND(float, land_float)
-MAKE_KERNEL_LOR(float, lor_float)
-MAKE_KERNEL_LXOR(float, lxor_float)
+MAKE_KERNEL_OP(float, sum_float, SUM_OP)
+MAKE_KERNEL_OP(float, prod_float, MUL_OP)
+MAKE_KERNEL_OP(float, max_float, MAX_OP)
+MAKE_KERNEL_OP(float, min_float, MIN_OP)
+MAKE_KERNEL_OP(float, land_float, LAND_OP)
+MAKE_KERNEL_OP(float, lor_float, LOR_OP)
+MAKE_KERNEL_OP(float, lxor_float, LXOR_OP)
 
 // double
-MAKE_KERNEL_SUM(double, sum_double)
-MAKE_KERNEL_PROD(double, prod_double)
-MAKE_KERNEL_MAX(double, max_double)
-MAKE_KERNEL_MIN(double, min_double)
-MAKE_KERNEL_LAND(double, land_double)
-MAKE_KERNEL_LOR(double, lor_double)
-MAKE_KERNEL_LXOR(double, lxor_double)
+MAKE_KERNEL_OP(double, sum_double, SUM_OP)
+MAKE_KERNEL_OP(double, prod_double, MUL_OP)
+MAKE_KERNEL_OP(double, max_double, MAX_OP)
+MAKE_KERNEL_OP(double, min_double, MIN_OP)
+MAKE_KERNEL_OP(double, land_double, LAND_OP)
+MAKE_KERNEL_OP(double, lor_double, LOR_OP)
+MAKE_KERNEL_OP(double, lxor_double, LXOR_OP)
 
 // char
-MAKE_KERNEL_SUM(char, sum_char)
-MAKE_KERNEL_PROD(char, prod_char)
-MAKE_KERNEL_MAX(char, max_char)
-MAKE_KERNEL_MIN(char, min_char)
-MAKE_KERNEL_LAND(char, land_char)
-MAKE_KERNEL_BAND(char, band_char)
-MAKE_KERNEL_LOR(char, lor_char)
-MAKE_KERNEL_BOR(char, bor_char)
-MAKE_KERNEL_LXOR(char, lxor_char)
-MAKE_KERNEL_BXOR(char, bxor_char)
+MAKE_KERNEL_OP(char, sum_char, SUM_OP)
+MAKE_KERNEL_OP(char, prod_char, MUL_OP)
+MAKE_KERNEL_OP(char, max_char, MAX_OP)
+MAKE_KERNEL_OP(char, min_char, MIN_OP)
+MAKE_KERNEL_OP(char, land_char, LAND_OP)
+MAKE_KERNEL_OP(char, band_char, BAND_OP)
+MAKE_KERNEL_OP(char, lor_char, LOR_OP)
+MAKE_KERNEL_OP(char, bor_char, BOR_OP)
+MAKE_KERNEL_OP(char, lxor_char, LXOR_OP)
+MAKE_KERNEL_OP(char, bxor_char, BXOR_OP)
 
 typedef void (*kernel_func)(void *, void *, int, int);
 
