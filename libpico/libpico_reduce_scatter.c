@@ -126,9 +126,6 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     recv_index += recv_size;
   }
 
-  err = MPI_Waitall(req_index, send_req, MPI_STATUSES_IGNORE);
-  if (err != MPI_SUCCESS)
-    goto cleanup;
   err = MPI_Waitall(req_index, recv_req, MPI_STATUSES_IGNORE);
   if (err != MPI_SUCCESS)
     goto cleanup;
@@ -147,7 +144,9 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     }
   }
 #endif
-
+  err = MPI_Waitall(req_index, send_req, MPI_STATUSES_IGNORE);
+  if (err != MPI_SUCCESS)
+    goto cleanup;
   /* recursive doubling globbal */
   int g_send_index, g_recv_index, g_last_index;
   send_index = recv_index = 0;
