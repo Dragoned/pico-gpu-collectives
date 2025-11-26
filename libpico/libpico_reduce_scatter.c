@@ -130,7 +130,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     goto cleanup;
 
 #ifdef PICO_MPI_CUDA_AWARE
-  err = reduce_wrapper_grops(recv_buff_head, result_buff_head + recv_index * extent, recv_size, GPU_ON_NODE - 1, dtype, op);
+  err = reduce_wrapper_grops(recv_buff_head, result_buff_head, recv_size, GPU_ON_NODE - 1, dtype, op);
   if (err != MPI_SUCCESS)
     goto cleanup;
 #else
