@@ -83,6 +83,7 @@ int bcast_bine_lat_new(BCAST_MPI_ARGS);
 int bcast_bine_lat_i_new(BCAST_MPI_ARGS);
 int bcast_bine_bdw_remap(BCAST_MPI_ARGS);
 
+int gather_linear(GATHER_MPI_ARGS);
 int gather_bine(GATHER_MPI_ARGS);
 
 int reduce_bine_lat(REDUCE_MPI_ARGS);
@@ -101,6 +102,7 @@ int reduce_scatter_bine_permute_remap(REDUCE_SCATTER_MPI_ARGS);
 int reduce_scatter_bine_block_by_block(REDUCE_SCATTER_MPI_ARGS);
 int reduce_scatter_bine_block_by_block_any_even(REDUCE_SCATTER_MPI_ARGS);
 
+int scatter_linear(SCATTER_MPI_ARGS);
 int scatter_bine(SCATTER_MPI_ARGS);
 
 /**

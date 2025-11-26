@@ -203,6 +203,7 @@ static inline bcast_func_ptr get_bcast_function(const char *algorithm) {
 */
 static inline gather_func_ptr get_gather_function(const char *algorithm) {
 #ifndef PICO_NCCL
+  CHECK_STR(algorithm, "linear_over", gather_linear);
   CHECK_STR(algorithm, "bine_over", gather_bine);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Gather");
@@ -273,6 +274,7 @@ static inline reduce_scatter_func_ptr get_reduce_scatter_function (const char *a
 */
 static inline scatter_func_ptr get_scatter_function (const char *algorithm){
 #ifndef PICO_NCCL
+  CHECK_STR(algorithm, "linear_over", scatter_linear);
   CHECK_STR(algorithm, "bine_over", scatter_bine);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Scatter");
