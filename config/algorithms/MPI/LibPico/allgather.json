@@ -62,15 +62,6 @@
             "value": "comm_sz"
           }
         ]
-      },
-      {
-        "key": "comm_sz",
-        "conditions": [
-          {
-            "operator": "is_power_of_two",
-            "value": true
-          }
-        ]
       }
     ],
     "tags": [
@@ -92,13 +83,25 @@
             "value": "comm_sz"
           }
         ]
-      },
+      }
+    ],
+    "tags": [
+      "recursive_doubling",
+      "cuda",
+      "external"
+    ]
+  },
+  "recursivedoubling_hierarchy_v3_over": {
+    "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
+    "version": "1.0.0",
+    "selection": "pico",
+    "constraints": [
       {
-        "key": "comm_sz",
+        "key": "count",
         "conditions": [
           {
-            "operator": "is_power_of_two",
-            "value": true
+            "operator": ">=",
+            "value": "comm_sz"
           }
         ]
       }

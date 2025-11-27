@@ -72,6 +72,7 @@ int allgather_bine_2_blocks_dtype(ALLGATHER_MPI_ARGS);
 int allgather_recursivedoubling_nontowpower(ALLGATHER_MPI_ARGS);
 int allgather_recursivedoubling_hierarchy_v1(ALLGATHER_MPI_ARGS);
 int allgather_recursivedoubling_hierarchy_v2(ALLGATHER_MPI_ARGS);
+int allgather_recursivedoubling_hierarchy_v3(ALLGATHER_MPI_ARGS);
 
 int alltoall_pairwise_ompi(ALLTOALL_MPI_ARGS);
 int alltoall_bine(ALLTOALL_MPI_ARGS);
