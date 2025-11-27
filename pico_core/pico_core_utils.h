@@ -226,7 +226,7 @@ int coll_memcpy_device_to_host(void** d_buf, void** buf, size_t count, size_t ty
 //                                TAG INITIALIZATION HELPER
 //-----------------------------------------------------------------------------------------------
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL
 
 /**
  * @brief Run the selected operation once. Used for tag initialization.
@@ -496,7 +496,7 @@ int split_communicator(MPI_Comm *inter_comm, MPI_Comm *intra_comm);
 //                                  I/O FUNCTIONS
 //-----------------------------------------------------------------------------------------------
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL
 
 static inline int pico_name_col_width(const char **names, int n, int min_w, int max_w) {
     int w = min_w;

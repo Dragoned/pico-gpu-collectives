@@ -5,7 +5,7 @@
 #include <mpi.h>
 #include "libpico.h"
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL
 #include <string.h>
 
 // ------------------------------------------------------------------------------------------------
