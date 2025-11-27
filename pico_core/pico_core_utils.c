@@ -402,7 +402,7 @@ int get_data_saving_options(test_routine_t *test_routine, size_t count,
     return -1;
   }
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL
   if (test_routine->segsize != 0) {
     snprintf(data_filename, sizeof(data_filename), "/%ld_%s_%ld_%s_instrument.csv",
              count, algorithm, test_routine->segsize, type_string);
@@ -543,7 +543,7 @@ int coll_memcpy_device_to_host(void** d_buf, void** buf, size_t count, size_t ty
 }
 #endif // PICO_MPI_CUDA_AWARE || PICO_NCCL
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL
 int run_coll_once(test_routine_t test_routine, void *sbuf, void *rbuf,
                    size_t count, MPI_Datatype dtype, MPI_Comm comm){
   int rank, comm_sz, ret, *rcounts = NULL;
@@ -912,7 +912,7 @@ int write_output_to_file(test_routine_t test_routine, double *highest, double *a
 }
 
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL
 int write_instrument_output_to_file(test_routine_t test_routine, double* times,
                                     double** tag_times, const char** tag_names, int iter){
   FILE *output_file = fopen(test_routine.output_data_file, "w");
