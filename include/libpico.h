@@ -6,7 +6,7 @@
 #ifndef LIBPICO_H
 #define LIBPICO_H
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
 #include <stdio.h>
 #endif
 
@@ -131,7 +131,7 @@ int scatter_bine(SCATTER_MPI_ARGS);
 //                        PUBLIC API Maros for instrumentation
 // ----------------------------------------------------------------------------------------------
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
 
 
 /**

@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     goto err_hndl;
   }
 #endif // PICO_NCCL
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
   int num_tags;
   const char **tag_names = NULL;
   double** tag_times = NULL;
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   const char *algorithm, *type_string; //, *is_hier = getenv("HIERARCHICAL");
   test_routine_t test_routine;
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
 #endif
 
   // TODO: Continue with hierarchical communicator setup
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
   }
 #endif // DEBUG
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
   libpico_init_tags();
   if (run_coll_once(test_routine, sbuf, rbuf, count, dtype, comm) != MPI_SUCCESS) {
     line = __LINE__;
@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
     free(highest);
   }
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
   free(tag_names);
   free(tag_times[0]);
   free(tag_times);
@@ -361,7 +361,7 @@ err_hndl:
   if(NULL != d_rbuf_gt) cudaFree(d_rbuf_gt);
 #endif // PICO_MPI_CUDA_AWARE || PICO_NCCL
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
   if (NULL != tag_names) free(tag_names);
   if (NULL != tag_times) {
     if (NULL != tag_times[0]) free(tag_times[0]);

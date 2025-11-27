@@ -827,7 +827,7 @@ activate_virtualenv() {
 compile_code() {
     [[ "$BEAR_COMPILE" == "yes" ]] && make_command="bear -- make all" || make_command="make all" # Used to create compile_command.json file for lsp
     [[ "$DEBUG_MODE" == "yes" ]] && make_command+=" DEBUG=1" ||  make_command+=" -s"
-    [[ "$INSTRUMENT" == "yes" ]] && make_command+=" PICO_INSTRUMENT=1" && inform "Instrumented build requested"
+    [[ "$INSTRUMENT" == "yes" && "$GPU_AWARENESS" != "yes" ]] && make_command+=" PICO_INSTRUMENT=1" && inform "Instrumented build requested"
 
     if [[ "$GPU_AWARENESS" == "yes" ]]; then
       case "$GPU_LIB" in
@@ -909,7 +909,7 @@ compile_all_libraries_tui() {
             need_cuda_build=1
         fi
         local this_instrument=0
-        if [[ "$mk_instr" -eq 1 ]]; then
+        if [[ "$mk_instr" -eq 1 && "$any_gpu_nonzero" -eq 0 ]]; then
             inform "Instrumented build requested for library $i"
             this_instrument=1
         fi
