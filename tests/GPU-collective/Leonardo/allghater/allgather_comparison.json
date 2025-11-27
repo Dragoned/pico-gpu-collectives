@@ -40,7 +40,6 @@
     "dimensions": {
       "dtype": "int32",
       "sizes_bytes": [
-        32,
         256,
         2048,
         16384,
@@ -51,7 +50,6 @@
         536870912
       ],
       "sizes_elements": [
-        8,
         64,
         512,
         4096,
@@ -67,7 +65,7 @@
         1048576
       ]
     },
-    "test_time": "00:05:00"
+    "test_time": "00:10:00"
   },
   "libraries": [
     {
@@ -87,6 +85,7 @@
       "compiler": "mpicc",
       "gpu_support": {
         "gpu": true,
+        "gpu_support_native": true,
         "gpu_load": {
           "type": "module",
           "module": "cuda/12.1"
@@ -121,11 +120,11 @@
             ]
           },
           {
-            "name": "recursive_doubling_ompi",
+            "name": "recursive_doubling_nontowpower_over",
             "coll": "allgather",
-            "desc": "Open MPI recursive doubling algorithm. This algorithm is used for small to medium messages. Works only on power of 2 processes. When invoked on non power of 2 processes, it will fallback to k_bruck with `radix=2`",
-            "version": "4.1.5",
-            "selection": 3,
+            "desc": "libpico external recursive doubling algorithm. Works with non power of 2 processes.",
+            "version": "1.0.0",
+            "selection": "pico",
             "constraints": [
               {
                 "key": "count",
@@ -135,25 +134,16 @@
                     "value": "comm_sz"
                   }
                 ]
-              },
-              {
-                "key": "comm_sz",
-                "conditions": [
-                  {
-                    "operator": "is_power_of_two",
-                    "value": true
-                  }
-                ]
               }
             ],
             "tags": [
               "recursive_doubling",
-              "small_sizes",
-              "medium_sizes"
+              "cuda",
+              "external"
             ]
           },
           {
-            "name": "recursivedoubling_hierarchy_over",
+            "name": "recursivedoubling_hierarchy_v1_over",
             "coll": "allgather",
             "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
             "version": "1.0.0",
@@ -167,13 +157,50 @@
                     "value": "comm_sz"
                   }
                 ]
-              },
+              }
+            ],
+            "tags": [
+              "recursive_doubling",
+              "cuda",
+              "external"
+            ]
+          },
+          {
+            "name": "recursivedoubling_hierarchy_v2_over",
+            "coll": "allgather",
+            "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
+            "version": "1.0.0",
+            "selection": "pico",
+            "constraints": [
               {
-                "key": "comm_sz",
+                "key": "count",
                 "conditions": [
                   {
-                    "operator": "is_power_of_two",
-                    "value": true
+                    "operator": ">=",
+                    "value": "comm_sz"
+                  }
+                ]
+              }
+            ],
+            "tags": [
+              "recursive_doubling",
+              "cuda",
+              "external"
+            ]
+          },
+          {
+            "name": "recursivedoubling_hierarchy_v3_over",
+            "coll": "allgather",
+            "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
+            "version": "1.0.0",
+            "selection": "pico",
+            "constraints": [
+              {
+                "key": "count",
+                "conditions": [
+                  {
+                    "operator": ">=",
+                    "value": "comm_sz"
                   }
                 ]
               }

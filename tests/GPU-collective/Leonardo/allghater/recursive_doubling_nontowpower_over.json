@@ -35,12 +35,11 @@
     "dry_run": false,
     "compress": true,
     "delete": true,
-    "number_of_nodes": 2,
-    "output_level": "statistics",
+    "number_of_nodes": 4,
+    "output_level": "summarized",
     "dimensions": {
       "dtype": "int32",
       "sizes_bytes": [
-        32,
         256,
         2048,
         16384,
@@ -51,7 +50,6 @@
         536870912
       ],
       "sizes_elements": [
-        8,
         64,
         512,
         4096,
@@ -67,7 +65,7 @@
         1048576
       ]
     },
-    "test_time": "00:02:00"
+    "test_time": "00:10:00"
   },
   "libraries": [
     {
@@ -87,6 +85,7 @@
       "compiler": "mpicc",
       "gpu_support": {
         "gpu": true,
+        "gpu_support_native": true,
         "gpu_load": {
           "type": "module",
           "module": "cuda/12.1"
@@ -100,9 +99,9 @@
       "algorithms": {
         "allgather": [
           {
-            "name": "recursivedoubling_hierarchy_over",
+            "name": "recursive_doubling_nontowpower_over",
             "coll": "allgather",
-            "desc": "libpico external recursive doubling algorithm. Use hierarchi condivision schemas",
+            "desc": "libpico external recursive doubling algorithm. Works with non power of 2 processes.",
             "version": "1.0.0",
             "selection": "pico",
             "constraints": [
@@ -112,15 +111,6 @@
                   {
                     "operator": ">=",
                     "value": "comm_sz"
-                  }
-                ]
-              },
-              {
-                "key": "comm_sz",
-                "conditions": [
-                  {
-                    "operator": "is_power_of_two",
-                    "value": true
                   }
                 ]
               }
