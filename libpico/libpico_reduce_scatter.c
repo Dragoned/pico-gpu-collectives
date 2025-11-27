@@ -35,6 +35,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   err = MPI_Comm_size(comm, &size);
   err = MPI_Comm_rank(comm, &rank);
 
+  PICO_TAG_BEGIN("support-data");
   /* get datatype information */
   MPI_Type_get_extent(dtype, &lb, &extent);
   MPI_Type_get_true_extent(dtype, &gap, &true_extent);
@@ -77,7 +78,8 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   {
     sbuf = rbuf;
   }
-
+  PICO_TAG_END("support-data");
+  PICO_TAG_BEGIN("buffer-allocation");
   /* allocate temporar buffer */
 #ifdef PICO_MPI_CUDA_AWARE
   BINE_CUDA_CHECK(cudaMalloc((void **)&recv_temp_buff, recv_buffer_size));
@@ -93,6 +95,8 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   }
 
 #endif
+  PICO_TAG_END("buffer-allocation");
+  PICO_TAG_BEGIN("local-comunication");
 
   recv_buff_head = recv_temp_buff - gap;
   result_buff_head = result_temp_buff - gap;
@@ -129,7 +133,8 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   err = MPI_Waitall(req_index, recv_req, MPI_STATUSES_IGNORE);
   if (err != MPI_SUCCESS)
     goto cleanup;
-
+  PICO_TAG_END("local-comunication");
+  PICO_TAG_BEGIN("local-kernel");
 #ifdef PICO_MPI_CUDA_AWARE
   err = reduce_wrapper_grops(recv_buff_head, result_buff_head, recv_size, GPU_ON_NODE - 1, dtype, op);
   if (err != MPI_SUCCESS)
@@ -144,9 +149,11 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     }
   }
 #endif
+  PICO_TAG_END("local-kernel");
   err = MPI_Waitall(req_index, send_req, MPI_STATUSES_IGNORE);
   if (err != MPI_SUCCESS)
     goto cleanup;
+  PICO_TAG_BEGIN("globbal-comunication");
   /* recursive doubling globbal */
   int g_send_index, g_recv_index, g_last_index;
   send_index = recv_index = 0;
@@ -209,6 +216,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
         goto cleanup;
       }
 
+      PICO_TAG_BEGIN("globbal-kernel");
       // todo: make gpu compatible
 #ifdef PICO_MPI_CUDA_AWARE
       err = reduce_wrapper(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
@@ -217,6 +225,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
 #else
       MPI_Reduce_local(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
 #endif
+      PICO_TAG_END("globbal-kernel");
     }
 
     send_index = recv_index;
@@ -224,7 +233,9 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
     g_last_index = g_recv_index + rem_data;
     rem_data >>= 1;
   }
+  PICO_TAG_END("globbal-comunication");
 
+  PICO_TAG_BEGIN("reorder-data");
   int inverse = inverse_rank(size, rank);
   if (rank != inverse)
   {
@@ -247,6 +258,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
       goto cleanup;
     }
   }
+  PICO_TAG_END("reorder-data");
 
 cleanup:
   if (NULL != disps)
