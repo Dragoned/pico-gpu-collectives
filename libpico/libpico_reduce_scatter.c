@@ -20,7 +20,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
 {
   int i, rank, size, err = MPI_SUCCESS;
   ptrdiff_t extent, true_extent, lb, recv_buffer_size, result_buffer_size, gap = 0;
-  char *recv_temp_buff, *result_temp_buff;
+  char *recv_temp_buff = NULL, *result_temp_buff = NULL;
   char *recv_buff_head, *result_buff_head;
   int data_sub_group, local_inverse, local_rank;
   int node_rank, node_size, peer_node;
@@ -28,8 +28,8 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   int send_index = 0, recv_index = 0;
   size_t send_size, recv_size;
   ptrdiff_t *disps = NULL;
-  MPI_Request *send_req;
-  MPI_Request *recv_req;
+  MPI_Request *send_req = NULL;
+  MPI_Request *recv_req = NULL;
   int req_index, node_offset;
 
   err = MPI_Comm_size(comm, &size);
