@@ -4,7 +4,7 @@
 #define GLOBAL_IDX (blockIdx.x * blockDim.x + threadIdx.x)
 
 #define MAKE_KERNEL_OP(type, name, OP)                                                       \
-  __global__ void name(type *inbuff, type *outbuff, type *currentbuff, int size, int groups) \
+  __global__ void name(type *inbuff, type *outbuff, const type *currentbuff, int size, int groups) \
   {                                                                                          \
     __shared__ type support_buff[MAX_THERAD];                                                \
     int gidx = GLOBAL_IDX, lidx = threadIdx.x;                                               \
@@ -130,7 +130,7 @@ MAKE_KERNEL_OP(char, bor_char, BOR_OP)
 MAKE_KERNEL_OP(char, lxor_char, LXOR_OP)
 MAKE_KERNEL_OP(char, bxor_char, BXOR_OP)
 
-typedef void (*kernel_func)(void *, void *, void *, int, int);
+typedef void (*kernel_func)(void *, void *, const void *, int, int);
 
 static inline enum ReduceOp mpi_to_reduce_op(MPI_Op op)
 {
@@ -210,7 +210,7 @@ int reduce_wrapper_grops(void *inbuff, void *inoutbuff, int group_size, int grou
   return reduce_wrapper_grops_inoutsplit(inbuff, inoutbuff, inoutbuff, group_size, groups, dtype, op);
 }
 
-int reduce_wrapper_grops_inoutsplit(void *inbuff, void *outbuff, void *currentbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op)
+int reduce_wrapper_grops_inoutsplit(void *inbuff, void *outbuff, const void *currentbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op)
 {
   enum ReduceOp r_op = mpi_to_reduce_op(op);
   enum ReduceType r_type = mpi_to_redcue_type(dtype);
