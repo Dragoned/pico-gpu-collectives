@@ -112,9 +112,11 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   /* recursive doubling local */
   recv_size = send_size = data_sub_group;
 
+#ifndef PICO_MPI_CUDA_AWARE
   err = COPY_BUFF_DIFF_DT(sbuf + disps[local_inverse * node_size] * extent, recv_size, dtype, result_buff_head, recv_size, dtype);
   if (err != MPI_SUCCESS)
     goto cleanup;
+#endif
 
   req_index = 0;
   recv_index = 0;
@@ -144,7 +146,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   PICO_TAG_END("local-comunication");
   PICO_TAG_BEGIN("local-kernel");
 #ifdef PICO_MPI_CUDA_AWARE
-  err = reduce_wrapper_grops(recv_buff_head, result_buff_head, recv_size, GPU_ON_NODE - 1, dtype, op);
+  err = reduce_wrapper_grops_inoutsplit(recv_buff_head, result_buff_head, sbuf + disps[local_inverse * node_size] * extent, recv_size, GPU_ON_NODE - 1, dtype, op);
   if (err != MPI_SUCCESS)
     goto cleanup;
 #else

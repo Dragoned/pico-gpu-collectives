@@ -3,30 +3,30 @@
 #define MAX_THERAD 1024
 #define GLOBAL_IDX (blockIdx.x * blockDim.x + threadIdx.x)
 
-#define MAKE_KERNEL_OP(type, name, OP)                                        \
-  __global__ void name(type *inbuff, type *inoutbuff, int size, int groups)   \
-  {                                                                           \
-    __shared__ type support_buff[MAX_THERAD];                                 \
-    int gidx = GLOBAL_IDX, lidx = threadIdx.x;                                \
-    int offset = 0;                                                           \
-    if (gidx < size)                                                          \
-    {                                                                         \
-      if (groups > 1)                                                         \
-      {                                                                       \
-        support_buff[lidx] = inoutbuff[gidx];                                 \
-        __syncthreads();                                                      \
-        for (int i = 0; i < groups; i++)                                      \
-        {                                                                     \
-          support_buff[lidx] = OP(inbuff[gidx + offset], support_buff[lidx]); \
-          offset += size;                                                     \
-        }                                                                     \
-        inoutbuff[gidx] = support_buff[lidx];                                 \
-      }                                                                       \
-      else                                                                    \
-      {                                                                       \
-        inoutbuff[gidx] = OP(inbuff[gidx], inoutbuff[gidx]);                  \
-      }                                                                       \
-    }                                                                         \
+#define MAKE_KERNEL_OP(type, name, OP)                                                       \
+  __global__ void name(type *inbuff, type *outbuff, type *currentbuff, int size, int groups) \
+  {                                                                                          \
+    __shared__ type support_buff[MAX_THERAD];                                                \
+    int gidx = GLOBAL_IDX, lidx = threadIdx.x;                                               \
+    int offset = 0;                                                                          \
+    if (gidx < size)                                                                         \
+    {                                                                                        \
+      if (groups > 1)                                                                        \
+      {                                                                                      \
+        support_buff[lidx] = currentbuff[gidx];                                              \
+        __syncthreads();                                                                     \
+        for (int i = 0; i < groups; i++)                                                     \
+        {                                                                                    \
+          support_buff[lidx] = OP(inbuff[gidx + offset], support_buff[lidx]);                \
+          offset += size;                                                                    \
+        }                                                                                    \
+        outbuff[gidx] = support_buff[lidx];                                                  \
+      }                                                                                      \
+      else                                                                                   \
+      {                                                                                      \
+        outbuff[gidx] = OP(inbuff[gidx], currentbuff[gidx]);                                 \
+      }                                                                                      \
+    }                                                                                        \
   }
 
 #define MAX_OP(a, b) ((a) > (b) ? (a) : (b))
@@ -130,7 +130,7 @@ MAKE_KERNEL_OP(char, bor_char, BOR_OP)
 MAKE_KERNEL_OP(char, lxor_char, LXOR_OP)
 MAKE_KERNEL_OP(char, bxor_char, BXOR_OP)
 
-typedef void (*kernel_func)(void *, void *, int, int);
+typedef void (*kernel_func)(void *, void *, void *, int, int);
 
 static inline enum ReduceOp mpi_to_reduce_op(MPI_Op op)
 {
@@ -200,10 +200,17 @@ kernel_func kernels[R_TYPE_NUM][R_OP_NUM] = {
 
 int reduce_wrapper(void *inbuff, void *inoutbuff, int count, MPI_Datatype dtype, MPI_Op op)
 {
-  return reduce_wrapper_grops(inbuff, inoutbuff, count, 1, dtype, op);
+  // call reduce_wrapper_grops_inoutsplit with sanem value for both outbuff and currentbuff with group size to count and 1 group
+  return reduce_wrapper_grops_inoutsplit(inbuff, inoutbuff, inoutbuff, count, 1, dtype, op);
 }
 
 int reduce_wrapper_grops(void *inbuff, void *inoutbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op)
+{
+  // call reduce_wrapper_grops_inoutsplit with sanem value for both outbuff and currentbuff
+  return reduce_wrapper_grops_inoutsplit(inbuff, inoutbuff, inoutbuff, group_size, groups, dtype, op);
+}
+
+int reduce_wrapper_grops_inoutsplit(void *inbuff, void *outbuff, void *currentbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op)
 {
   enum ReduceOp r_op = mpi_to_reduce_op(op);
   enum ReduceType r_type = mpi_to_redcue_type(dtype);
@@ -220,7 +227,7 @@ int reduce_wrapper_grops(void *inbuff, void *inoutbuff, int group_size, int grou
   if (kfunc == NULL)
     return MPI_ERR_UNSUPPORTED_OPERATION;
 
-  kfunc<<<gridSize, blockSize>>>(inbuff, inoutbuff, group_size, groups);
+  kfunc<<<gridSize, blockSize>>>(inbuff, outbuff, currentbuff, group_size, groups);
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {

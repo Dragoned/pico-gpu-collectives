@@ -37,9 +37,14 @@ enum ReduceOp {
     R_OP_NUM
 };
 
+// simple reduce wrappe reduce 2 buffer
 int reduce_wrapper(void* inbuff, void* inoutbuff, int count, MPI_Datatype dtype, MPI_Op op);
 
+// reduce wrapper that reducea group of buffer of a certent size
 int reduce_wrapper_grops(void *inbuff, void *inoutbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op);
+
+// reduce wrapper that reducea group of buffer of a certent size where ther are a set of starter data on another buffer
+int reduce_wrapper_grops_inoutsplit(void *inbuff, void *outbuff, void *currentbuff, int group_size, int groups, MPI_Datatype dtype, MPI_Op op);
 
 #ifdef __cplusplus
 }
