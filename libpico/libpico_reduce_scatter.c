@@ -24,13 +24,13 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   char *recv_buff_head, *result_buff_head;
   int data_sub_group, local_inverse, local_rank;
   int node_rank, node_size, peer_node;
-  int peer, dist_mask, rem_data;
+  int peer, dist_mask, rem_data, seg_num;
   int send_index = 0, recv_index = 0;
-  size_t send_size, recv_size;
+  size_t send_size, recv_size, seg_size = 0;
   ptrdiff_t *disps = NULL;
   MPI_Request *send_req = NULL;
   MPI_Request *recv_req = NULL;
-  int req_index, node_offset;
+  int send_req_index, recv_req_index, node_offset;
 
   err = MPI_Comm_size(comm, &size);
   err = MPI_Comm_rank(comm, &rank);
@@ -50,7 +50,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   data_sub_group = 0;
   for (i = 0; i < node_size; i++)
   {
-    data_sub_group += rcounts[local_inverse * node_size + i] ;
+    data_sub_group += rcounts[local_inverse * node_size + i];
   }
 
   /* determinate data displacment  */
@@ -71,8 +71,23 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
     return MPI_SUCCESS;
   }
 
-  send_req = calloc(max(GPU_ON_NODE, log_2(node_size)), sizeof(MPI_Request));
-  recv_req = calloc(max(GPU_ON_NODE, log_2(node_size)), sizeof(MPI_Request));
+  if (bine_allreduce_segsize != 0)
+  {
+    seg_num = 0;
+    for (i = 0; i < size - node_size; i += node_size)
+    {
+      seg_num = max(disps[i + node_size] - disps[i], seg_num);
+    }
+    seg_num = max(max(rcounts[size - 1] - disps[i], seg_num) * extent / bine_allreduce_segsize, 1);
+    seg_size = bine_allreduce_segsize / extent;
+  }
+  else
+  {
+    seg_num = 1;
+  }
+
+  send_req = calloc(max(GPU_ON_NODE, log_2(node_size)) * seg_num, sizeof(MPI_Request));
+  recv_req = calloc(max(GPU_ON_NODE, log_2(node_size)) * seg_num, sizeof(MPI_Request));
   if (send_req == NULL || recv_req == NULL)
   {
     err = MPI_ERR_NO_MEM;
@@ -117,53 +132,73 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   if (err != MPI_SUCCESS)
     goto cleanup;
 #endif
-
-  req_index = 0;
-  recv_index = 0;
-  for (i = 0; i < GPU_ON_NODE; i++)
+  if (seg_size == 0 || seg_num == 1)
   {
-    peer = node_offset + i;
-    if (peer == rank)
-      continue;
-
-    local_inverse = inverse_rank(GPU_ON_NODE, i);
-
-    err = MPI_Isend(sbuf + disps[local_inverse * node_size] * extent, send_size, dtype, peer, 0, comm, &send_req[req_index]);
-    if (err != MPI_SUCCESS)
-      goto cleanup;
-
-    err = MPI_Irecv(recv_buff_head + recv_index * extent, recv_size, dtype, peer, 0, comm, &recv_req[req_index]);
-    if (err != MPI_SUCCESS)
-      goto cleanup;
-
-    req_index++;
-    recv_index += recv_size;
+    seg_size = send_size;
   }
 
-  err = MPI_Waitall(req_index, recv_req, MPI_STATUSES_IGNORE);
-  if (err != MPI_SUCCESS)
-    goto cleanup;
-  PICO_TAG_END("local-comunication");
-  PICO_TAG_BEGIN("local-kernel");
-#ifdef PICO_MPI_CUDA_AWARE
-  local_inverse = inverse_rank(GPU_ON_NODE, local_rank);
-  err = reduce_wrapper_grops_inoutsplit(recv_buff_head, result_buff_head, sbuf + disps[local_inverse * node_size] * extent, recv_size, GPU_ON_NODE - 1, dtype, op);
-  if (err != MPI_SUCCESS)
-    goto cleanup;
-#else
-  for (i = 0; i < GPU_ON_NODE - 1; i++)
+  /* printf("seg_size %d seg_num %d\n", seg_size, seg_num);
+  fflush(stdout); */
+  send_req_index = 0;
+  for (size_t seg_ind = 0; seg_ind < send_size; seg_ind += seg_size)
   {
-    err = MPI_Reduce_local(recv_buff_head + i * recv_size * extent, result_buff_head, recv_size, dtype, op);
-    if (MPI_SUCCESS != err)
+    recv_req_index = 0;
+    recv_index = seg_ind;
+    for (i = 0; i < GPU_ON_NODE; i++)
     {
-      goto cleanup;
+      peer = node_offset + i;
+      if (peer == rank)
+        continue;
+
+      local_inverse = inverse_rank(GPU_ON_NODE, i);
+
+      err = MPI_Isend(sbuf + (disps[local_inverse * node_size] + seg_ind) * extent, seg_size, dtype, peer, 0, comm, &send_req[send_req_index]);
+      if (err != MPI_SUCCESS)
+        goto cleanup;
+
+      err = MPI_Irecv(recv_buff_head + (recv_index) * extent, seg_size, dtype, peer, 0, comm, &recv_req[recv_req_index]);
+      if (err != MPI_SUCCESS)
+        goto cleanup;
+
+      /*printf("rank %d send %d reciv %d seg index %d seg size %d\n", rank, disps[local_inverse * node_size] + seg_ind, recv_index, seg_ind, seg_size);
+      fflush(stdout);*/
+
+      send_req_index++;
+      recv_req_index++;
+      recv_index += recv_size;
     }
-  }
+
+    err = MPI_Waitall(recv_req_index, recv_req, MPI_STATUSES_IGNORE);
+    if (err != MPI_SUCCESS)
+      goto cleanup;
+    PICO_TAG_END("local-comunication");
+    PICO_TAG_BEGIN("local-kernel");
+#ifdef PICO_MPI_CUDA_AWARE
+    local_inverse = inverse_rank(GPU_ON_NODE, local_rank);
+    err = reduce_wrapper_grops_inoutsplit(recv_buff_head + seg_ind * extent, result_buff_head + seg_ind * extent, sbuf + (disps[local_inverse * node_size] + seg_ind) * extent, seg_size, GPU_ON_NODE - 1, dtype, op);
+    if (err != MPI_SUCCESS)
+      goto cleanup;
+#else
+    for (i = 0; i < GPU_ON_NODE - 1; i++)
+    {
+      /*printf("reduce value %d\n", i * recv_size + seg_ind);
+      fflush(stdout);*/
+      err = MPI_Reduce_local(recv_buff_head + (i * recv_size + seg_ind) * extent, result_buff_head + seg_ind * extent, seg_size, dtype, op);
+      if (MPI_SUCCESS != err)
+      {
+        goto cleanup;
+      }
+    }
 #endif
+  }
   PICO_TAG_END("local-kernel");
-  err = MPI_Waitall(req_index, send_req, MPI_STATUSES_IGNORE);
+  err = MPI_Waitall(send_req_index, send_req, MPI_STATUSES_IGNORE);
   if (err != MPI_SUCCESS)
     goto cleanup;
+
+  /*err = COPY_BUFF_DIFF_DT(result_buff_head + 2 * extent, rcounts[rank],
+                            dtype, rbuf, rcounts[rank], dtype);
+  return MPI_SUCCESS;*/
   PICO_TAG_BEGIN("globbal-comunication");
   /* recursive doubling globbal */
   int g_send_index, g_recv_index, g_last_index;
@@ -171,7 +206,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
   rem_data = node_size >> 1;
   g_send_index = g_recv_index = local_inverse * node_size;
   g_last_index = g_recv_index + node_size;
-  req_index = 0;
+  send_req_index = recv_req_index = 0;
 
   for (dist_mask = 0x1; dist_mask < node_size; dist_mask <<= 1)
   {
@@ -209,18 +244,18 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
 
     if (send_size > 0)
     {
-      err = MPI_Isend(result_buff_head + send_index * extent, send_size, dtype, peer, 0, comm, &send_req[req_index]);
+      err = MPI_Isend(result_buff_head + send_index * extent, send_size, dtype, peer, 0, comm, &send_req[send_req_index]);
       if (err != MPI_SUCCESS)
         goto cleanup;
 
-      req_index++;
+      send_req_index++;
     }
     if (recv_size > 0)
     {
       err = MPI_Recv(recv_buff_head, recv_size, dtype, peer, 0, comm, MPI_STATUS_IGNORE);
       if (err != MPI_SUCCESS)
         goto cleanup;
-    }    
+    }
 
     if (recv_size > 0)
     {
@@ -241,7 +276,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
     g_last_index = g_recv_index + rem_data;
     rem_data >>= 1;
   }
-  err = MPI_Waitall(req_index, send_req, MPI_STATUSES_IGNORE);
+  err = MPI_Waitall(send_req_index, send_req, MPI_STATUSES_IGNORE);
   if (err != MPI_SUCCESS)
     goto cleanup;
 
@@ -293,7 +328,6 @@ cleanup:
   return err;
 }
 
-
 int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rbuf, const int rcounts[],
                                                       MPI_Datatype dtype, MPI_Op op, MPI_Comm comm)
 {
@@ -329,7 +363,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   data_sub_group = 0;
   for (i = 0; i < node_size; i++)
   {
-    data_sub_group += rcounts[local_inverse * node_size + i] ;
+    data_sub_group += rcounts[local_inverse * node_size + i];
   }
 
   /* determinate data displacment  */
@@ -439,7 +473,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
   rem_data = node_size >> 1;
   g_send_index = g_recv_index = local_inverse * node_size;
   g_last_index = g_recv_index + node_size;
-  
+
   for (dist_mask = 0x1; dist_mask < node_size; dist_mask <<= 1)
   {
     peer_node = node_rank ^ dist_mask;
@@ -485,7 +519,7 @@ int reduce_scatter_recursive_doubling_hierarchical_v3(const void *sbuf, void *rb
       err = MPI_Send(result_buff_head + send_index * extent, send_size, dtype, peer, 0, comm);
       if (err != MPI_SUCCESS)
         goto cleanup;
-    }    
+    }
 
     if (recv_size > 0)
     {
