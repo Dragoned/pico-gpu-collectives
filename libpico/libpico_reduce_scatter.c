@@ -188,8 +188,8 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
         goto cleanup;
       }
     }
-    PICO_TAG_END("local-kernel");
 #endif
+    PICO_TAG_END("local-kernel");
   }
   PICO_TAG_END("local-comunication");
   err = MPI_Waitall(send_req_index, send_req, MPI_STATUSES_IGNORE);
