@@ -171,7 +171,6 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
     err = MPI_Waitall(recv_req_index, recv_req, MPI_STATUSES_IGNORE);
     if (err != MPI_SUCCESS)
       goto cleanup;
-    PICO_TAG_END("local-comunication");
     PICO_TAG_BEGIN("local-kernel");
 #ifdef PICO_MPI_CUDA_AWARE  
     local_inverse = inverse_rank(GPU_ON_NODE, local_rank);
@@ -189,9 +188,10 @@ int reduce_scatter_recursive_doubling_hierarchical_v4(const void *sbuf, void *rb
         goto cleanup;
       }
     }
+    PICO_TAG_END("local-kernel");
 #endif
   }
-  PICO_TAG_END("local-kernel");
+  PICO_TAG_END("local-comunication");
   err = MPI_Waitall(send_req_index, send_req, MPI_STATUSES_IGNORE);
   if (err != MPI_SUCCESS)
     goto cleanup;
