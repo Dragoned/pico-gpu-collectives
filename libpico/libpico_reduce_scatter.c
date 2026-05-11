@@ -320,7 +320,7 @@ int reduce_scatter_recursive_doubling_hierarchical_segmented(const void *sbuf, v
 
     if (recv_size > 0)
     {
-      PICO_TAG_BEGIN("global-kernel");
+      PICO_TAG_BEGIN("global_com/kernel");
       // todo: make gpu compatible
 #ifdef PICO_MPI_CUDA_AWARE
       err = reduce_wrapper(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
@@ -330,7 +330,7 @@ int reduce_scatter_recursive_doubling_hierarchical_segmented(const void *sbuf, v
 #else
       MPI_Reduce_local(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
 #endif
-      PICO_TAG_END("global-kernel");
+      PICO_TAG_END("global_com/kernel");
     }
 
     send_index = recv_index;
@@ -592,7 +592,7 @@ int reduce_scatter_recursive_doubling_hierarchical_local_parallel(const void *sb
         goto cleanup;
       }
 
-      PICO_TAG_BEGIN("global-kernel");
+      PICO_TAG_BEGIN("global_com/kernel");
       // todo: make gpu compatible
 #ifdef PICO_MPI_CUDA_AWARE
       err = reduce_wrapper(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
@@ -602,7 +602,7 @@ int reduce_scatter_recursive_doubling_hierarchical_local_parallel(const void *sb
 #else
       MPI_Reduce_local(recv_buff_head, result_buff_head + recv_index * extent, recv_size, dtype, op);
 #endif
-      PICO_TAG_END("global-kernel");
+      PICO_TAG_END("global_com/kernel");
     }
 
     send_index = recv_index;

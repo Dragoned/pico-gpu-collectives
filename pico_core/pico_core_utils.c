@@ -142,13 +142,13 @@ static inline allgather_func_ptr get_allgather_function(const char *algorithm) {
   CHECK_STR(algorithm, "bine_2_blocks_over", allgather_bine_2_blocks);
   CHECK_STR(algorithm, "bine_2_blocks_dtype_over", allgather_bine_2_blocks_dtype);
   CHECK_STR(algorithm, "bine_permutation_over", allgather_bine_permutation);
-  CHECK_STR(algorithm, "bine_block_by_block_hierarcic_local_global_over", allgather_bine_block_by_block_hierarcic_local_global);
-  CHECK_STR(algorithm, "bine_block_by_block_hierarcic_global_local_over", allgather_bine_block_by_block_hierarcic_global_local);
-  CHECK_STR(algorithm, "bine_send_remap_hierarcic_local_global_over", allgather_bine_send_remap_hierarcic_local_global);
-  CHECK_STR(algorithm, "bine_send_remap_hierarcic_global_local_over", allgather_bine_send_remap_hierarcic_global_local);
-  CHECK_STR(algorithm, "bine_2_blocks_hierarcic_over", allgather_bine_2_blocks_hierarcic);
-  CHECK_STR(algorithm, "bine_permutation_hierarcic_local_global_over", allgather_bine_permutation_hierarcic_local_global);
-  CHECK_STR(algorithm, "bine_permutation_hierarcic_global_local_over", allgather_bine_permutation_hierarcic_global_local);
+  CHECK_STR(algorithm, "bine_block_by_block_hierarchical_local_global_over", allgather_bine_block_by_block_hierarchical_local_global);
+  CHECK_STR(algorithm, "bine_block_by_block_hierarchical_global_local_over", allgather_bine_block_by_block_hierarchical_global_local);
+  CHECK_STR(algorithm, "bine_send_remap_hierarchical_local_global_over", allgather_bine_send_remap_hierarchical_local_global);
+  CHECK_STR(algorithm, "bine_send_remap_hierarchical_global_local_over", allgather_bine_send_remap_hierarchical_global_local);
+  CHECK_STR(algorithm, "bine_2_blocks_hierarchical_over", allgather_bine_2_blocks_hierarchical);
+  CHECK_STR(algorithm, "bine_permutation_hierarchical_local_global_over", allgather_bine_permutation_hierarchical_local_global);
+  CHECK_STR(algorithm, "bine_permutation_hierarchical_global_local_over", allgather_bine_permutation_hierarchical_global_local);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Allgather");
   return allgather_wrapper;

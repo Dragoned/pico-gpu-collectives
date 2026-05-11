@@ -2237,7 +2237,7 @@ err_hndl:
 }
 
 //TODO:  create a new version with global and local com inverted
-int allgather_bine_block_by_block_hierarcic_local_global(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_block_by_block_hierarchical_local_global(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                            void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm){
   int line = -1, rank, size, steps, err = MPI_SUCCESS, remote;
   int node_size, node_rank, node_offset, local_rank;
@@ -2363,7 +2363,7 @@ err_hndl:
   return err;
 }
 
-int allgather_bine_block_by_block_hierarcic_global_local(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_block_by_block_hierarchical_global_local(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                            void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm){
   int line = -1, rank, size, steps, err = MPI_SUCCESS, remote;
   int node_size, node_rank, node_offset, local_rank;
@@ -2492,7 +2492,7 @@ err_hndl:
   return err;
 }
 
-int allgather_bine_send_remap_hierarcic_local_global(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_send_remap_hierarchical_local_global(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                            void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
 {
   int line = -1, rank, size, steps, err = MPI_SUCCESS;
@@ -2613,7 +2613,7 @@ err_hndl:
   return err;
 }
 
-int allgather_bine_send_remap_hierarcic_global_local(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_send_remap_hierarchical_global_local(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                            void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
 {
   int line = -1, rank, size, steps, err = MPI_SUCCESS;
@@ -2758,7 +2758,7 @@ err_hndl:
   return err;
 }
 
-int allgather_bine_2_blocks_hierarcic(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_2_blocks_hierarchical(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                            void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
 {
   int line = -1, rank, size, steps, err = MPI_SUCCESS, remote;
@@ -2904,7 +2904,7 @@ err_hndl:
   return err;
 }
 
-int allgather_bine_permutation_hierarcic_local_global(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_permutation_hierarchical_local_global(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                            void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm){
   int line = -1, rank, size, steps, err = MPI_SUCCESS, remote, data_exchange;
   int node_size, node_rank, node_offset, local_rank, num_reqs;
@@ -3008,7 +3008,7 @@ err_hndl:
   return err;
 }
 
-int allgather_bine_permutation_hierarcic_global_local(const void *sbuf, size_t scount, MPI_Datatype sdtype,
+int allgather_bine_permutation_hierarchical_global_local(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                                             void *rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm)
 {
   int line = -1, rank, size, steps, err = MPI_SUCCESS, remote, data_exchange;

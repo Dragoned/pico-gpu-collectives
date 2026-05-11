@@ -137,12 +137,14 @@ def print_struct_condensed_latex(df_filtered: pd.DataFrame, nnode: int):
             df_percentuali
         ], axis=1)
         
+        risultato = risultato.reindex(sorted(risultato.columns.to_list(), key=lambda x: (x.split("/")[0], len(x.split("/")))), axis=1)
+        
         bufer_sizes = ["r" for _ in risultato['buffer_size']]
         
         lines = [
             "\\begin{table}[H]",
             "\\centering",
-            f"\\caption{{ {algo_name.replace("_", "\\_")} {nnode} node }}",
+            f"\\caption{{ allgather {algo_name.replace("_", "\\_")} {nnode} node }}",
             "\\resizebox{\\textwidth}{!}{%",
             f"\\begin{{tabular}}{{ {"|l|" + "|".join(bufer_sizes) + "|"} }}",
             "\\hline",
@@ -163,7 +165,7 @@ def print_struct_condensed_latex(df_filtered: pd.DataFrame, nnode: int):
                 "\\end{table}"
         ]
         
-        with open(f"instrment/{nnode}_{algo_name}.tex", "w") as f:
+        with open(f"instrment/reduce_scatter_{nnode}_{algo_name}.tex", "w") as f:
             f.writelines('\n'.join(lines) + '\n')
 
 def print_struct_condensed_time(df_filtered: pd.DataFrame):
@@ -218,7 +220,8 @@ def main():
         return None
     
     df_filtered = df[df['gpu_awareness'] == 'yes']
-    print_struct_condensed(df_filtered)
+    print_struct_condensed_latex(df_filtered, args.nnode)
+    #print_struct_condensed(df_filtered)
             
             
 if __name__ == '__main__':

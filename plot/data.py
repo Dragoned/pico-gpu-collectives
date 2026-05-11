@@ -97,7 +97,6 @@ def drop_unused_columns(df: pd.DataFrame) -> pd.DataFrame:
         "mpi_lib_version",
         "gpu_lib",
         "gpu_lib_version",
-        "gpu_awareness",
         "libpico_version",
     ]
 

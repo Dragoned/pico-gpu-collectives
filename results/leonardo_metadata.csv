@@ -238,8 +238,8 @@ timestamp,test_id,nnodes,tasks_per_node,collective_type,mpi_lib,mpi_lib_version,
 2025_12_17___12_56_05,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,test reduce scatter hierarchical gpu v4 segmented
 2025_12_19___15_16_52,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,test bine send remap hierarchical v1
 2025_12_19___15_16_52,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,test bine send remap hierarchical v1
-2025_12_22___15_01_16,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,test reduce_scatter_bine_block_by_block_hierarchical_v1
-2025_12_22___15_01_16,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,test reduce_scatter_bine_block_by_block_hierarchical_v1
+2025_12_22___15_01_16,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,test reduce_scatter_bine_block_by_block_hierarchical
+2025_12_22___15_01_16,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,test reduce_scatter_bine_block_by_block_hierarchical
 2026_01_07___11_31_32,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,bine block by block comparison
 2026_01_07___11_31_32,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,bine block by block comparison
 2026_01_07___11_45_47,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,bine permute remap comparison
@@ -319,3 +319,13 @@ timestamp,test_id,nnodes,tasks_per_node,collective_type,mpi_lib,mpi_lib_version,
 2026_02_12___09_04_37,1,64,1,SCATTER,OMPI,6.1.0,no,null,null,minimal,,null
 2026_02_12___09_04_37,2,64,1,GATHER,OMPI,4.1.6,no,null,null,minimal,,null
 2026_02_12___09_04_37,3,64,1,SCATTER,OMPI,4.1.6,no,null,null,minimal,,null
+2026_02_14___13_37_17,0,4,4,ALLGATHER,OMPI,4.1.6,yes,cuda,12.1,summarized,,allgather test comparison 16 rank instrument
+2026_02_14___13_37_17,1,4,4,ALLGATHER,OMPI,4.1.6,no,null,null,summarized,,allgather test comparison 16 rank instrument
+2026_02_16___17_12_20,0,4,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,reduce scatter test complete 16 rank
+2026_02_16___17_12_20,1,4,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,reduce scatter test complete 16 rank
+2026_02_17___10_09_16,0,16,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,reduce scatter test complete 64 rank
+2026_02_17___10_09_16,1,16,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,reduce scatter test complete 64 rank
+2026_02_18___15_19_51,0,64,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,summarized,,reduce scatter test complete 256 rank
+2026_02_18___15_19_51,1,64,4,REDUCE_SCATTER,OMPI,4.1.6,no,null,null,summarized,,reduce scatter test complete 256 rank
+2026_02_19___18_08_30,0,512,4,ALLGATHER,OMPI,4.1.6,yes,cuda,12.1,minimal,,null
+2026_02_19___18_08_30,1,512,4,REDUCE_SCATTER,OMPI,4.1.6,yes,cuda,12.1,minimal,,null
