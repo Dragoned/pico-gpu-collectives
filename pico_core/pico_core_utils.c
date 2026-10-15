@@ -15,7 +15,7 @@
 #include <stdbool.h>
 
 #include "pico_core_utils.h"
-#include "pico_mpi_nccl_mapper.h"
+#include "pico_mpi_nccl_ucc_mapper.h"
 
 /**
  * @brief Converts a string to a `coll_t` enum value.
@@ -108,7 +108,7 @@ static inline allocator_func_ptr get_allocator_cuda(coll_t collective) {
 * defauls to the internal allreduce function.
 */
 static inline allreduce_func_ptr get_allreduce_function(const char *algorithm) {
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "recursive_doubling_over", allreduce_recursivedoubling);
   CHECK_STR(algorithm, "ring_over", allreduce_ring);
   CHECK_STR(algorithm, "rabenseifner_over", allreduce_rabenseifner);
@@ -119,6 +119,8 @@ static inline allreduce_func_ptr get_allreduce_function(const char *algorithm) {
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Allreduce");
   return allreduce_wrapper;
+#elif defined PICO_UCC
+  return allreduce_wrapper_ucc;
 #else
   return ncclAllReduce;
 #endif
@@ -133,7 +135,7 @@ static inline allreduce_func_ptr get_allreduce_function(const char *algorithm) {
 * defauls to the internal allgather function.
 */
 static inline allgather_func_ptr get_allgather_function(const char *algorithm) {
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "k_bruck_over", allgather_k_bruck);
   CHECK_STR(algorithm, "recursive_doubling_any_even_over", allgather_recursivedoubling_any_even);
   CHECK_STR(algorithm, "recursivedoubling_hierarchy_over", allgather_recursivedoubling_hierarchy);
@@ -152,6 +154,8 @@ static inline allgather_func_ptr get_allgather_function(const char *algorithm) {
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Allgather");
   return allgather_wrapper;
+#elif defined PICO_UCC
+  return allgather_wrapper_ucc;
 #else
   CHECK_STR(algorithm, "bine_block_by_block_nccl_over", allgather_bine_block_by_block_nccl);
 
@@ -168,12 +172,14 @@ static inline allgather_func_ptr get_allgather_function(const char *algorithm) {
 * defauls to the internal alltoall function.
 */
 static inline alltoall_func_ptr get_alltoall_function(const char *algorithm) {
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "bine_over", alltoall_bine);
   CHECK_STR(algorithm, "pairwise_ompi_over", alltoall_pairwise_ompi);
   CHECK_STR(algorithm, "bine_dh_over", alltoall_bine_DH);
   PICO_CORE_DEBUG_PRINT_STR("MPI_Alltoall");
   return alltoall_wrapper;
+#elif defined PICO_UCC
+  return alltoall_wrapper_ucc;
 #else
   fprintf(stderr, "Failed: nccl doesn't support AllToAll operation\n");
   exit(EXIT_FAILURE);
@@ -182,11 +188,13 @@ static inline alltoall_func_ptr get_alltoall_function(const char *algorithm) {
 }
 
 static inline alltoallv_func_ptr get_alltoallv_function(const char *algorithm){
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "bine_dh_over", alltoallv_bine_DH);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Alltoallv");
   return alltoallv_wrapper;
+#elif defined PICO_UCC
+  return alltoallv_wrapper_ucc;
 #else
   CHECK_STR(algorithm, "nccl_spreadout_alltoallv_over", alltoallv_nccl_spreadout);
   CHECK_STR(algorithm, "nccl_fanout_alltoallv_over", alltoallv_nccl_fanout);
@@ -205,7 +213,7 @@ static inline alltoallv_func_ptr get_alltoallv_function(const char *algorithm){
 * defauls to the internal bcast function.
 */
 static inline bcast_func_ptr get_bcast_function(const char *algorithm) {
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "linear_over", bcast_linear);
   CHECK_STR(algorithm, "binomial_halving_over", bcast_binomial_halving);
   CHECK_STR(algorithm, "binomial_doubling_over", bcast_binomial_doubling);
@@ -218,6 +226,8 @@ static inline bcast_func_ptr get_bcast_function(const char *algorithm) {
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Bcast");
   return bcast_wrapper;
+#elif defined PICO_UCC
+  return bcast_wrapper_ucc;
 #else
   return ncclBcast;
 #endif
@@ -233,12 +243,14 @@ static inline bcast_func_ptr get_bcast_function(const char *algorithm) {
 * defauls to the internal gather function.
 */
 static inline gather_func_ptr get_gather_function(const char *algorithm) {
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "linear_over", gather_linear);
   CHECK_STR(algorithm, "bine_over", gather_bine);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Gather");
   return gather_wrapper;
+#elif defined PICO_UCC
+  return gather_wrapper_ucc;
 #else
   fprintf(stderr, "Failed: nccl doesn't support Gather operation\n");
   exit(EXIT_FAILURE);
@@ -256,12 +268,14 @@ static inline gather_func_ptr get_gather_function(const char *algorithm) {
 * defauls to the internal reduce function.
 */
 static inline reduce_func_ptr get_reduce_function(const char *algorithm) {
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "bine_lat_over", reduce_bine_lat);
   CHECK_STR(algorithm, "bine_bdw_over", reduce_bine_bdw);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Reduce");
   return reduce_wrapper;
+#elif defined PICO_UCC
+  return reduce_wrapper_ucc;
 #else
   return ncclReduce;
 #endif
@@ -276,7 +290,7 @@ static inline reduce_func_ptr get_reduce_function(const char *algorithm) {
 * defauls to the internal reduce scatter function.
 */
 static inline reduce_scatter_func_ptr get_reduce_scatter_function (const char *algorithm){
-  #ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "recursive_distance_doubling_gpu_over", reduce_scatter_recursive_doubling_gpu);
   CHECK_STR(algorithm, "recursive_distance_doubling_hierarchical_local_parallel_over", reduce_scatter_recursive_doubling_hierarchical_local_parallel);
   CHECK_STR(algorithm, "recursive_halving_over", reduce_scatter_recursivehalving);
@@ -292,6 +306,8 @@ static inline reduce_scatter_func_ptr get_reduce_scatter_function (const char *a
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Reduce_scatter");
   return MPI_Reduce_scatter;
+#elif defined PICO_UCC
+  return reduce_scatter_wrapper_ucc;
 #else
   return ncclReduceScatter;
 #endif
@@ -306,12 +322,14 @@ static inline reduce_scatter_func_ptr get_reduce_scatter_function (const char *a
 * defauls to the internal scatter function.
 */
 static inline scatter_func_ptr get_scatter_function (const char *algorithm){
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
   CHECK_STR(algorithm, "linear_over", scatter_linear);
   CHECK_STR(algorithm, "bine_over", scatter_bine);
 
   PICO_CORE_DEBUG_PRINT_STR("MPI_Scatter");
   return scatter_wrapper;
+#elif defined PICO_UCC
+  return scatter_wrapper_ucc;
 #else
   fprintf(stderr, "Failed: nccl doesn't support Scatter operation\n");
   exit(EXIT_FAILURE);
@@ -439,7 +457,7 @@ int get_data_saving_options(test_routine_t *test_routine, size_t count,
     return -1;
   }
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
   if (test_routine->segsize != 0) {
     snprintf(data_filename, sizeof(data_filename), "/%ld_%s_%ld_%s_instrument.csv",
              count, algorithm, test_routine->segsize, type_string);
@@ -589,7 +607,7 @@ int coll_memcpy_device_to_host(void** d_buf, void** buf, size_t count, size_t ty
 }
 #endif // PICO_MPI_CUDA_AWARE || PICO_NCCL
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
 int run_coll_once(test_routine_t test_routine, void *sbuf, void *rbuf,
                    size_t count, MPI_Datatype dtype, MPI_Comm comm){
   int rank, comm_sz, ret, *rcounts = NULL;
@@ -665,7 +683,7 @@ int run_coll_once(test_routine_t test_routine, void *sbuf, void *rbuf,
 #endif
 
 
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
 int test_loop(test_routine_t test_routine, void *sbuf, void *rbuf, size_t count,
               MPI_Datatype dtype, MPI_Comm comm, int iter, double *times){
   int rank, comm_sz, ret, *rcounts = NULL;
@@ -743,6 +761,89 @@ int test_loop(test_routine_t test_routine, void *sbuf, void *rbuf, size_t count,
       return -1;
   }
   return ret;
+}
+#elif defined PICO_UCC
+int test_loop(test_routine_t test_routine, void *sbuf, void *rbuf, size_t count,
+              ucc_datatype_t dtype, MPI_Comm comm, pico_ucc_env_t ucc_env, int iter, double *times){
+  int rank, comm_sz, ret;
+  ucc_count_t *rcounts = NULL;
+
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &comm_sz);
+
+  size_t local_count = count / (size_t) comm_sz; /**< Rank count for collectives with distributed data */
+
+  switch (test_routine.collective){
+    case ALLREDUCE:
+      ret = allreduce_test_loop(sbuf, rbuf, count, dtype, UCC_OP_SUM,
+                            comm, ucc_env, iter, times, test_routine);
+      break;
+    case ALLGATHER:
+      ret = allgather_test_loop(sbuf, local_count, dtype,
+                            rbuf, count, dtype,
+                            comm, ucc_env, iter, times, test_routine);
+      break;
+    case ALLTOALL:
+      ret = alltoall_test_loop(sbuf, count, dtype,
+                           rbuf, count, dtype,
+                           comm, ucc_env, iter, times, test_routine);
+    break;
+    case ALLTOALLV: {
+      ucc_count_t *scounts = malloc(comm_sz * sizeof(ucc_count_t));
+      ucc_aint_t *sdispls = malloc(comm_sz * sizeof(ucc_aint_t));
+      ucc_count_t *rcounts_v = malloc(comm_sz * sizeof(ucc_count_t));
+      ucc_aint_t *rdispls = malloc(comm_sz * sizeof(ucc_aint_t));
+
+      for (int i = 0; i < comm_sz; i++) {
+        scounts[i] = local_count;
+        rcounts_v[i] = local_count;
+        sdispls[i] = i * local_count;
+        rdispls[i] = i * local_count;
+      }
+
+      ret = alltoallv_test_loop(sbuf, scounts, sdispls, dtype,
+                            rbuf, rcounts_v, rdispls, dtype,
+                            comm, ucc_env, iter, times, test_routine);
+
+      free(scounts);
+      free(sdispls);
+      free(rcounts_v);
+      free(rdispls);
+      break;
+    }
+    case BCAST:
+      ret = bcast_test_loop(sbuf, count, dtype, PICO_ROOT_RANK, comm, ucc_env, iter, times,
+                        test_routine);
+      break;
+    case GATHER:
+      ret = gather_test_loop(sbuf, local_count, dtype,
+                         rbuf, local_count, dtype, PICO_ROOT_RANK, comm,
+                         ucc_env, iter, times, test_routine);
+      break;
+    case REDUCE:
+      ret = reduce_test_loop(sbuf, rbuf, count, dtype, UCC_OP_SUM, PICO_ROOT_RANK, comm,
+                             ucc_env, iter, times, test_routine);
+      break;
+    case REDUCE_SCATTER:
+      rcounts = (ucc_count_t *)malloc(comm_sz * sizeof(ucc_count_t));
+      for (int i = 0; i < comm_sz; i++)
+      {
+        rcounts[i] = local_count;
+      }
+      ret = reduce_scatter_test_loop(sbuf, rbuf, rcounts, dtype, UCC_OP_SUM, comm,
+                                     ucc_env, iter, times, test_routine);
+      free(rcounts);
+      break;
+    case SCATTER:
+      ret = scatter_test_loop(sbuf, local_count, dtype,
+                              rbuf, local_count, dtype,
+                              PICO_ROOT_RANK, comm, ucc_env, iter, times, test_routine);
+      break;
+    default:
+      fprintf(stderr, "still not implemented, aborting...");
+      return -1;
+    }
+    return ret;
 }
 #else
 int test_loop(test_routine_t test_routine, void *sbuf, void *rbuf, size_t count,
@@ -1218,7 +1319,7 @@ int write_output_to_file(test_routine_t test_routine, double *highest, double *a
 }
 
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
 int write_instrument_output_to_file(test_routine_t test_routine, double* times,
                                     double** tag_times, const char** tag_names, int iter){
   FILE *output_file = fopen(test_routine.output_data_file, "w");

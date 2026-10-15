@@ -465,6 +465,7 @@ class LoadType(Enum):
 class StdType(Enum):
     MPI = 'MPI'
     NCCL = 'NCCL'
+    UCC = 'UCC'
     UNKNOWN = 'unknown'
 
     @classmethod
@@ -474,6 +475,8 @@ class StdType(Enum):
             return cls.MPI
         elif value == 'nccl':
             return cls.NCCL
+        elif value == 'ucc':
+            return cls.UCC
         else:
             return cls.UNKNOWN
 
@@ -486,6 +489,7 @@ class LibType(Enum):
     MPICH = 'MPICH'
     CRAY_MPICH = 'Cray-MPICH'
     NCCL = 'NCCL'
+    UCC = 'UCC'
     UNKNOWN = 'unknown'
 
     @classmethod
@@ -499,6 +503,8 @@ class LibType(Enum):
             return cls.CRAY_MPICH
         elif value == 'nccl':
             return cls.NCCL
+        elif value == 'ucc':
+            return cls.UCC
         else:
             return cls.UNKNOWN
 

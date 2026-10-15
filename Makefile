@@ -22,7 +22,12 @@ endif
 
 ifeq ($(PICO_NCCL),1)
     export NCCL_FLAG = -DPICO_NCCL -I$(NCCL_HOME)/include -I$(CUDA_HOME)/include -lmpi -lnccl
-    export LDLIBS += -L$(NCCL_HOME)/lib -lnccl -L$(CUDA_HOME)/lib64 -lcudart
+    export NCCL_LDLIBS = -L$(NCCL_HOME)/lib -lnccl -L$(CUDA_HOME)/lib64 -lcudart
+endif
+
+ifeq ($(PICO_UCC),1)
+    export UCC_FLAG = -DPICO_UCC -I$(UCC_HOME)/include
+    export UCC_LDLIBS = -L$(UCC_HOME)/lib -lucc
 endif
 
 export CFLAGS_COMMON
@@ -31,11 +36,11 @@ all: libpico pico_core
 
 libpico:
 	@echo -e "$(BLUE)[BUILD] Compiling libpico static library...$(NC)"
-	$(MAKE) -C libpico $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE)) $(if $(GPU_NATIVE_SUPPORT),GPU_NATIVE_SUPPORT=$(GPU_NATIVE_SUPPORT)) $(if $(PICO_NCCL), PICO_NCCL=$(PICO_NCCL))
+	$(MAKE) -C libpico $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE)) $(if $(GPU_NATIVE_SUPPORT),GPU_NATIVE_SUPPORT=$(GPU_NATIVE_SUPPORT)) $(if $(PICO_NCCL),PICO_NCCL=$(PICO_NCCL)) $(if $(PICO_UCC),PICO_UCC=$(PICO_UCC))
 
 pico_core: libpico
 	@echo -e "$(BLUE)[BUILD] Compiling pico_core executable...$(NC)"
-	$(MAKE) -C pico_core $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE)) $(if $(GPU_NATIVE_SUPPORT),GPU_NATIVE_SUPPORT=$(GPU_NATIVE_SUPPORT)) $(if $(PICO_NCCL),PICO_NCCL=$(PICO_NCCL))
+	$(MAKE) -C pico_core $(if $(DEBUG),DEBUG=$(DEBUG)) $(if $(PICO_MPI_CUDA_AWARE),PICO_MPI_CUDA_AWARE=$(PICO_MPI_CUDA_AWARE)) $(if $(GPU_NATIVE_SUPPORT),GPU_NATIVE_SUPPORT=$(GPU_NATIVE_SUPPORT)) $(if $(PICO_NCCL),PICO_NCCL=$(PICO_NCCL)) $(if $(PICO_UCC),PICO_UCC=$(PICO_UCC))
 
 clean:
 	@echo -e "${RED}[CLEAN] Cleaning all builds...$(NC)"

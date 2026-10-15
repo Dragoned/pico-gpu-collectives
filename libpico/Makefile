@@ -66,6 +66,8 @@ LIB_DEPS_NCCL    := $(patsubst %.c, $(LIB_OBJ_DIR_NCCL)/%.d, $(LIB_SRC))
 LIB_CONFIG_NCCL  := $(LIB_OBJ_DIR_NCCL)/.build-config
 LIBPICO_NCCL     := $(LIB_DIR)/libpico_nccl.a
 
+NCCL_LDLIBS ?= $(LDLIBS)
+
 FORCE:
 
 $(LIB_CONFIG): FORCE
@@ -83,7 +85,7 @@ $(LIB_CONFIG_CUDA): FORCE
 $(LIB_CONFIG_NCCL): FORCE
 	@mkdir -p $(dir $@)
 	@printf '%s\n' "PICOCC=$(PICOCC)" "CFLAGS=$(CFLAGS)" \
-		"NCCL_FLAG=$(NCCL_FLAG)" "LDLIBS=$(LDLIBS)" > "$@.tmp"
+		"NCCL_FLAG=$(NCCL_FLAG)" "NCCL_LDLIBS=$(NCCL_LDLIBS)" > "$@.tmp"
 	@if cmp -s "$@.tmp" "$@"; then rm -f "$@.tmp"; else mv "$@.tmp" "$@"; fi
 
 $(LIB_OBJS): $(LIB_CONFIG)
@@ -149,7 +151,7 @@ $(LIBPICO_NCCL): $(LIB_OBJS_NCCL)
 $(LIB_OBJ_DIR_NCCL)/%.o: %.c
 	@mkdir -p $(LIB_OBJ_DIR_NCCL)
 	@echo -e "$(YELLOW)[CC] Compiling NCCL $< -> $@...$(NC)"
-	$(PICOCC) $(CFLAGS) $(LDLIBS) $(NCCL_FLAG) -DPICO_NCCL -ldcudart -c $< -o $@
+	$(PICOCC) $(CFLAGS) $(NCCL_LDLIBS) $(NCCL_FLAG) -DPICO_NCCL -ldcudart -c $< -o $@
 
 -include $(LIB_DEPS_NCCL)
 

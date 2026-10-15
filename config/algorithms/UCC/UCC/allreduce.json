@@ -1,0 +1,12 @@
+{
+  "default_ucc": {
+    "desc": "UCC default algorithm selection",
+    "version": "1.4.0",
+    "selection": "UCC",
+    "cuda_support": "yes",
+    "rocm_support": "ucx",
+    "tags": [
+      "default"
+    ]
+  }
+}

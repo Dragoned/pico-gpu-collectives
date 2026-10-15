@@ -647,6 +647,18 @@
           "remap",
           "external"
         ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
+        ]
       }
     },
     "ALLGATHER": {
@@ -1584,9 +1596,33 @@
           "bine",
           "external"
         ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
+        ]
       }
     },
     "ALLTOALL": {
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
+        ]
+      },
       "default_mpich": {
         "desc": "MPICH default algorithm selection",
         "library": {
@@ -2543,6 +2579,18 @@
           "bandwidth_optimal",
           "external"
         ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
+        ]
       }
     },
     "GATHER": {
@@ -2770,6 +2818,18 @@
         "tags": [
           "bine",
           "external"
+        ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
         ]
       }
     },
@@ -3017,6 +3077,18 @@
           "bine",
           "bandwidth_optimal",
           "external"
+        ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
         ]
       }
     },
@@ -3763,6 +3835,18 @@
           "block_by_block",
           "external"
         ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
+        ]
       }
     },
     "SCATTER": {
@@ -4011,6 +4095,18 @@
         "tags": [
           "bine",
           "external"
+        ]
+      },
+      "default_ucc": {
+        "desc": "UCC default algorithm selection",
+        "library": {
+          "ucc": "1.4.0"
+        },
+        "cvar": "auto",
+        "tags": [
+          "default",
+          "cuda",
+          "internal"
         ]
       }
     }

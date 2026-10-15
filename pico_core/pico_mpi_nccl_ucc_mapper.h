@@ -2,8 +2,8 @@
  * Copyright (c) 2025 Daniele De Sensi e Saverio Pasqualoni
  * Licensed under the MIT License
  */
-#ifndef PICO_MPI_NCCL_MAPPER_H
-#define PICO_MPI_NCCL_MAPPER_H
+#ifndef PICO_MPI_NCCL_UCC_MAPPER_H
+#define PICO_MPI_NCCL_UCC_MAPPER_H
 
 #include <stdio.h>
 #include <string.h>
@@ -16,14 +16,18 @@
 #ifdef PICO_NCCL
 #include <nccl.h>
 #endif
-
+#ifdef PICO_UCC
+#include <ucc/api/ucc.h>
+#endif
 
 
 /* ---------------- Selector & helpers ---------------- */
-#ifndef PICO_NCCL
-#  define PICO_PICK(NCCL_EXPR, MPI_EXPR) MPI_EXPR
+#if !defined PICO_NCCL && !defined PICO_UCC
+#  define PICO_PICK(NCCL_EXPR, MPI_EXPR, UCC_EXPR) MPI_EXPR
+#elif defined PICO_UCC
+#  define PICO_PICK(NCCL_EXPR, MPI_EXPR, UCC_EXPR) UCC_EXPR
 #else
-#  define PICO_PICK(NCCL_EXPR, MPI_EXPR) NCCL_EXPR
+#  define PICO_PICK(NCCL_EXPR, MPI_EXPR, UCC_EXPR) NCCL_EXPR
 #endif
 
 #if defined PICO_NCCL || defined PICO_MPI_CUDA_AWARE
@@ -113,20 +117,20 @@ static inline int pico_nccl_finalize(ncclComm_t comm, cudaStream_t stream)
 #endif
 
 /* ---------------- Types ----------------------------------- */
-#define PICO_COMM_T         PICO_PICK(ncclComm_t,      MPI_Comm)
-#define PICO_RESULT_T       PICO_PICK(ncclResult_t,    int)
-#define PICO_DTYPE_T        PICO_PICK(ncclDataType_t, MPI_Datatype)
+#define PICO_COMM_T         PICO_PICK(ncclComm_t,      MPI_Comm,    ucc_team_h)
+#define PICO_RESULT_T       PICO_PICK(ncclResult_t,    int,         ucc_status_t)
+#define PICO_DTYPE_T        PICO_PICK(ncclDataType_t, MPI_Datatype, ucc_datatype_t)
 
 /* ---------------- Datatypes ----------------------------------- */
-#define PICO_DTYPE_INVALID  PICO_PICK((ncclDataType_t)(-1), MPI_DATATYPE_NULL)
-#define PICO_DTYPE_INT8     PICO_PICK(ncclInt8,             MPI_INT8_T)
-#define PICO_DTYPE_INT16    PICO_PICK(PICO_DTYPE_INVALID,   MPI_INT16_T)
-#define PICO_DTYPE_INT32    PICO_PICK(ncclInt32,            MPI_INT32_T)
-#define PICO_DTYPE_INT64    PICO_PICK(ncclInt64,            MPI_INT64_T)
-#define PICO_DTYPE_INT      PICO_PICK(ncclInt32,            MPI_INT) // for compatibility with old NCCL versions
-#define PICO_DTYPE_FLOAT    PICO_PICK(ncclFloat32,          MPI_FLOAT)
-#define PICO_DTYPE_DOUBLE   PICO_PICK(ncclFloat64,          MPI_DOUBLE)
-#define PICO_DTYPE_CHAR     PICO_PICK(ncclInt8,             MPI_CHAR) // for compatibility with old NCCL versions
+#define PICO_DTYPE_INVALID  PICO_PICK((ncclDataType_t)(-1), MPI_DATATYPE_NULL,    (ucc_dt_type_t)(-1))
+#define PICO_DTYPE_INT8     PICO_PICK(ncclInt8,             MPI_INT8_T,           UCC_DT_INT8)
+#define PICO_DTYPE_INT16    PICO_PICK(PICO_DTYPE_INVALID,   MPI_INT16_T,          UCC_DT_INT16)
+#define PICO_DTYPE_INT32    PICO_PICK(ncclInt32,            MPI_INT32_T,          UCC_DT_INT32)
+#define PICO_DTYPE_INT64    PICO_PICK(ncclInt64,            MPI_INT64_T,          UCC_DT_INT64)
+#define PICO_DTYPE_INT      PICO_PICK(ncclInt32,            MPI_INT,              UCC_DT_INT32) // for compatibility with old NCCL versions
+#define PICO_DTYPE_FLOAT    PICO_PICK(ncclFloat32,          MPI_FLOAT,            UCC_DT_FLOAT32)
+#define PICO_DTYPE_DOUBLE   PICO_PICK(ncclFloat64,          MPI_DOUBLE,           UCC_DT_FLOAT64)
+#define PICO_DTYPE_CHAR     PICO_PICK(ncclInt8,             MPI_CHAR,             UCC_DT_INT8) // for compatibility with old NCCL versions
 
 
 
@@ -137,7 +141,7 @@ static inline int pico_nccl_finalize(ncclComm_t comm, cudaStream_t stream)
  */
 typedef struct {
   const char*     t_string;   /* Type name as a string */
-  PICO_DTYPE_T    pico_type; /* Backend datatype token (NCCL or MPI) */
+  PICO_DTYPE_T    pico_type; /* Backend datatype token (NCCL or MPI or UCC) */
   MPI_Datatype    mpi_type;  /* MPI datatype token (for reference) */
   size_t          t_size;     /* Size of the element in bytes */
 } PicoTypeMap;

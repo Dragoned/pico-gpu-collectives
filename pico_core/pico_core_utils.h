@@ -14,8 +14,24 @@
 #ifdef PICO_NCCL
 #include <nccl.h>
 #endif
+#ifdef PICO_UCC
+#include <ucc/api/ucc.h>
+#include <limits.h>
+#include <stdlib.h>
+#endif
 
-#include "pico_mpi_nccl_mapper.h"
+#include "pico_mpi_nccl_ucc_mapper.h"
+
+#ifdef PICO_UCC
+// UCC environment: library, context and team handles
+typedef struct
+{
+  ucc_lib_h lib;
+  ucc_context_h ctx;
+  ucc_team_h team;
+} pico_ucc_env_t;
+#endif
+
 #include "libpico.h"
 
 #define PICO_ROOT_RANK 0
@@ -122,7 +138,7 @@ int scatter_allocator(ALLOCATOR_ARGS);
 //                               FUNCTION POINTER AND WRAPPER
 //                       (for specific collective function and gt_check)
 //-----------------------------------------------------------------------------------------------
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
 typedef int (*allreduce_func_ptr)(ALLREDUCE_MPI_ARGS);
 typedef int (*allgather_func_ptr)(ALLGATHER_MPI_ARGS);
 typedef int (*alltoall_func_ptr)(ALLTOALL_MPI_ARGS);
@@ -156,6 +172,186 @@ static inline int reduce_wrapper(REDUCE_MPI_ARGS){
 }
 static inline int scatter_wrapper(SCATTER_MPI_ARGS){
   return MPI_Scatter(sbuf, (int)scount, sdtype, rbuf, (int)rcount, rdtype, root, comm);
+}
+#elif defined PICO_UCC
+typedef ucc_coll_args_t (*allreduce_func_ptr)(ALLREDUCE_UCC_ARGS);
+typedef ucc_coll_args_t (*allgather_func_ptr)(ALLGATHER_UCC_ARGS);
+typedef ucc_coll_args_t (*alltoall_func_ptr)(ALLTOALL_UCC_ARGS);
+typedef ucc_coll_args_t (*alltoallv_func_ptr)(ALLTOALLV_UCC_ARGS);
+typedef ucc_coll_args_t (*bcast_func_ptr)(BCAST_UCC_ARGS);
+typedef ucc_coll_args_t (*gather_func_ptr)(GATHER_UCC_ARGS);
+typedef ucc_coll_args_t (*reduce_func_ptr)(REDUCE_UCC_ARGS);
+typedef ucc_coll_args_t (*reduce_scatter_func_ptr)(REDUCE_SCATTER_UCC_ARGS);
+typedef ucc_coll_args_t (*scatter_func_ptr)(SCATTER_UCC_ARGS);
+
+// zero-initialize a ucc_coll_args_t and set its collective type
+static inline ucc_coll_args_t pico_ucc_conf_collective_init(ucc_coll_type_t coll_type)
+{
+  ucc_coll_args_t coll_args;
+
+  memset(&coll_args, 0, sizeof(coll_args));
+  coll_args.coll_type = coll_type;
+
+  return coll_args;
+}
+
+// configure ucc buffer information
+static inline void pico_ucc_conf_buffer(ucc_coll_buffer_info_t *info, const void *buff, size_t count, ucc_datatype_t dtype, ucc_memory_type_t mem_type)
+{
+  info->buffer = (void *)buff;
+  info->count = count;
+  info->datatype = dtype;
+  info->mem_type = mem_type;
+}
+
+// configure ucc vbuffer information
+static inline void pico_ucc_conf_bufferv(ucc_coll_buffer_info_v_t *info_v, const void *buff, const ucc_count_t *counts, const ucc_aint_t *displs, ucc_datatype_t dtype, ucc_memory_type_t mem_type)
+{
+  info_v->buffer = (void *)buff;
+  info_v->counts = (ucc_count_t *)counts;
+  info_v->displacements = (ucc_aint_t *)displs;
+  info_v->datatype = dtype;
+  info_v->mem_type = mem_type;
+}
+
+// memory type reported to UCC: CUDA buffers with CUDA-aware MPI, host buffers otherwise
+#ifdef PICO_MPI_CUDA_AWARE
+#define PICO_UCC_MEM_TYPE UCC_MEMORY_TYPE_CUDA
+#else
+#define PICO_UCC_MEM_TYPE UCC_MEMORY_TYPE_HOST
+#endif
+
+static inline ucc_coll_args_t allreduce_wrapper_ucc(ALLREDUCE_UCC_ARGS)
+{
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_ALLREDUCE);
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, sbuf, count, dtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_buffer(&coll_conf.dst.info, rbuf, count, dtype, PICO_UCC_MEM_TYPE);
+  coll_conf.op = op;
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t allgather_wrapper_ucc(ALLGATHER_UCC_ARGS)
+{
+  int comm_sz;
+  MPI_Comm_size(comm, &comm_sz);
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_ALLGATHER);
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, sbuf, scount, sdtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_buffer(&coll_conf.dst.info, rbuf, rcount, rdtype, PICO_UCC_MEM_TYPE);
+
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t alltoall_wrapper_ucc(ALLTOALL_UCC_ARGS)
+{
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_ALLTOALL);
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, sbuf, scount, sdtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_buffer(&coll_conf.dst.info, rbuf, rcount, rdtype, PICO_UCC_MEM_TYPE);
+
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t alltoallv_wrapper_ucc(ALLTOALLV_UCC_ARGS)
+{
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_ALLTOALLV);
+  coll_conf.mask = UCC_COLL_ARGS_FIELD_FLAGS;
+  coll_conf.flags = UCC_COLL_ARGS_FLAG_COUNT_64BIT | UCC_COLL_ARGS_FLAG_DISPLACEMENTS_64BIT;
+
+  pico_ucc_conf_bufferv(&coll_conf.src.info_v, sbuf, scounts, sdispls, sdtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_bufferv(&coll_conf.dst.info_v, rbuf, rcounts, rdispls, rdtype, PICO_UCC_MEM_TYPE);
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t bcast_wrapper_ucc(BCAST_UCC_ARGS)
+{
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_BCAST);
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, buf, count, dtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_buffer(&coll_conf.dst.info, buf, count, dtype, PICO_UCC_MEM_TYPE);
+
+  coll_conf.root = root;
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t gather_wrapper_ucc(GATHER_UCC_ARGS)
+{
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_GATHER);
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, sbuf, scount, sdtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_buffer(&coll_conf.dst.info, rbuf, rcount, rdtype, PICO_UCC_MEM_TYPE);
+
+  coll_conf.root = root;
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t reduce_scatter_wrapper_ucc(REDUCE_SCATTER_UCC_ARGS)
+{
+  int comm_sz;
+  MPI_Comm_size(comm, &comm_sz);
+  ucc_count_t total_count = 0;
+  for (int i = 0; i < comm_sz; i++)
+  {
+    total_count += (ucc_count_t)rcounts[i];
+  }
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_REDUCE_SCATTERV);
+  coll_conf.mask  = UCC_COLL_ARGS_FIELD_FLAGS;
+  coll_conf.flags = UCC_COLL_ARGS_FLAG_COUNT_64BIT;
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, sbuf, total_count, dtype, PICO_UCC_MEM_TYPE);
+  pico_ucc_conf_bufferv(&coll_conf.dst.info_v, rbuf, (ucc_count_t *)rcounts, NULL, dtype, PICO_UCC_MEM_TYPE);
+  coll_conf.op = op;
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t reduce_wrapper_ucc(REDUCE_UCC_ARGS)
+{
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_REDUCE);
+
+  pico_ucc_conf_buffer(&coll_conf.src.info, sbuf, count, dtype, PICO_UCC_MEM_TYPE);
+
+  pico_ucc_conf_buffer(&coll_conf.dst.info, rbuf, count, dtype, PICO_UCC_MEM_TYPE);
+
+  coll_conf.op = op;
+  coll_conf.root = root;
+  return coll_conf;
+}
+
+static inline ucc_coll_args_t scatter_wrapper_ucc(SCATTER_UCC_ARGS){
+  int comm_sz;
+  MPI_Comm_size(comm, &comm_sz);
+
+  static ucc_count_t *scnts  = NULL;
+  static ucc_aint_t  *sdisps = NULL;
+  static int scap = 0;
+
+  if (scap < comm_sz) {
+    free(scnts);
+    free(sdisps);
+    scnts  = (ucc_count_t *)malloc((size_t)comm_sz * sizeof(ucc_count_t));
+    sdisps = (ucc_aint_t *)malloc((size_t)comm_sz * sizeof(ucc_aint_t));
+    scap = comm_sz;
+  }
+  for (int i = 0; i < comm_sz; i++) {
+    scnts[i]  = (ucc_count_t)scount;
+    sdisps[i] = (ucc_aint_t)i * (ucc_aint_t)scount;
+  }
+
+  ucc_coll_args_t coll_conf = pico_ucc_conf_collective_init(UCC_COLL_TYPE_SCATTERV);
+  coll_conf.mask  = UCC_COLL_ARGS_FIELD_FLAGS;
+  coll_conf.flags = UCC_COLL_ARGS_FLAG_COUNT_64BIT | UCC_COLL_ARGS_FLAG_DISPLACEMENTS_64BIT;
+
+  pico_ucc_conf_bufferv(&coll_conf.src.info_v, sbuf, scnts, sdisps, sdtype, PICO_UCC_MEM_TYPE);
+  pico_ucc_conf_buffer(&coll_conf.dst.info, rbuf, rcount, rdtype, PICO_UCC_MEM_TYPE);
+  coll_conf.root = root;
+  return coll_conf;
 }
 #else
 typedef ncclResult_t (*allreduce_func_ptr)(ALLREDUCE_NCCL_ARGS);
@@ -234,10 +430,177 @@ int coll_memcpy_device_to_host(void** d_buf, void** buf, size_t count, size_t ty
 #endif
 
 //-----------------------------------------------------------------------------------------------
-//                                TAG INITIALIZATION HELPER
+//                          UCC FUNCTIONS
 //-----------------------------------------------------------------------------------------------
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#ifdef PICO_UCC
+// out-of-band (OOB) bootstrap request: wraps the MPI request used by UCC for peer discovery
+typedef struct
+{
+  MPI_Request mpi_req;
+} pico_ucc_oob_req_t;
+
+// OOB allgather: nonblocking MPI_Iallgather used by UCC to exchange bootstrap data;
+// coll_info carries the MPI_Comm, req is the heap-allocated request wrapper
+static inline ucc_status_t oob_allgather(void *sbuf, void *rbuf, size_t msglen,
+                                         void *coll_info, void **req)
+{
+  MPI_Comm comm = (MPI_Comm)(uintptr_t)coll_info;
+  pico_ucc_oob_req_t *oob_req;
+
+  if (PICO_CORE_UNLIKELY(msglen > INT_MAX))
+  {
+    return UCC_ERR_INVALID_PARAM;
+  }
+
+  oob_req = malloc(sizeof(*oob_req));
+  if (PICO_CORE_UNLIKELY(!oob_req))
+  {
+    return UCC_ERR_NO_MEMORY;
+  }
+
+  MPI_Iallgather(sbuf, (int)msglen, MPI_BYTE, rbuf, (int)msglen, MPI_BYTE,
+                 comm, &oob_req->mpi_req);
+  *req = oob_req;
+  return UCC_OK;
+}
+
+// poll the OOB request: UCC_OK when the underlying MPI_Iallgather completed
+static inline ucc_status_t oob_allgather_test(void *req)
+{
+  MPI_Request *mpi_req = &((pico_ucc_oob_req_t *)req)->mpi_req;
+  int completed;
+
+  MPI_Test(mpi_req, &completed, MPI_STATUS_IGNORE);
+  return completed ? UCC_OK : UCC_INPROGRESS;
+}
+
+// release the OOB request wrapper
+static inline ucc_status_t oob_allgather_free(void *req)
+{
+  free(req);
+  return UCC_OK;
+}
+
+// initialize the UCC environment: library, then context (with OOB over the MPI communicator),
+// then team; on failure unwinds via goto and returns -1
+static inline int pico_ucc_env_init(pico_ucc_env_t *env, MPI_Comm comm, int size, int rank)
+{
+  ucc_lib_config_h lib_config = NULL;
+  ucc_context_config_h ctx_config = NULL;
+  ucc_lib_params_t lib_params;
+  ucc_context_params_t ctx_params;
+  ucc_team_params_t team_params;
+  ucc_status_t status;
+
+  /* 1. Initialize UCC library */
+  memset(&lib_params, 0, sizeof(lib_params));
+  lib_params.mask = UCC_LIB_PARAM_FIELD_THREAD_MODE;
+  lib_params.thread_mode = UCC_THREAD_SINGLE;
+
+  if (UCC_OK != ucc_lib_config_read(NULL, NULL, &lib_config))
+  {
+    fprintf(stderr, "Error: pico_ucc_env_init: ucc_lib_config_read failed\n");
+    goto err_lib_config;
+  }
+
+  if (UCC_OK != ucc_init(&lib_params, lib_config, &env->lib))
+  {
+    fprintf(stderr, "Error: pico_ucc_env_init: ucc_init failed\n");
+    goto err_init;
+  }
+
+  ucc_lib_config_release(lib_config);
+  lib_config = NULL;
+
+  /* 2. Create UCC context */
+  memset(&ctx_params, 0, sizeof(ctx_params));
+  ctx_params.mask = UCC_CONTEXT_PARAM_FIELD_OOB;
+  ctx_params.oob.allgather = oob_allgather;
+  ctx_params.oob.req_test = oob_allgather_test;
+  ctx_params.oob.req_free = oob_allgather_free;
+  ctx_params.oob.coll_info = (void *)(uintptr_t)comm;
+  ctx_params.oob.n_oob_eps = size;
+  ctx_params.oob.oob_ep = rank;
+
+  if (UCC_OK != ucc_context_config_read(env->lib, NULL, &ctx_config))
+  {
+    fprintf(stderr, "Error: pico_ucc_env_init: ucc_context_config_read failed\n");
+    goto err_lib;
+  }
+
+  if (UCC_OK != ucc_context_create(env->lib, &ctx_params, ctx_config, &env->ctx))
+  {
+    fprintf(stderr, "Error: pico_ucc_env_init: ucc_context_create failed\n");
+    goto err_ctx_config;
+  }
+
+  ucc_context_config_release(ctx_config);
+  ctx_config = NULL;
+
+  /* 3. Create UCC team */
+  memset(&team_params, 0, sizeof(team_params));
+  team_params.mask = UCC_TEAM_PARAM_FIELD_EP |
+                     UCC_TEAM_PARAM_FIELD_EP_RANGE |
+                     UCC_TEAM_PARAM_FIELD_OOB;
+  team_params.ep = rank;
+  team_params.ep_range = UCC_COLLECTIVE_EP_RANGE_CONTIG;
+  team_params.oob.allgather = oob_allgather;
+  team_params.oob.req_test = oob_allgather_test;
+  team_params.oob.req_free = oob_allgather_free;
+  team_params.oob.coll_info = (void *)(uintptr_t)comm;
+  team_params.oob.n_oob_eps = size;
+  team_params.oob.oob_ep = rank;
+
+  if (UCC_OK != ucc_team_create_post(&env->ctx, 1, &team_params, &env->team))
+  {
+    fprintf(stderr, "Error: pico_ucc_env_init: ucc_team_create_post failed\n");
+    goto err_ctx;
+  }
+
+  while (UCC_INPROGRESS == (status = ucc_team_create_test(env->team)))
+  {
+    ucc_context_progress(env->ctx);
+  }
+
+  if (status != UCC_OK)
+  {
+    fprintf(stderr, "Error: pico_ucc_env_init: ucc_team_create_test failed (status=%d)\n", (int)status);
+    goto err_ctx;
+  }
+
+  return 0;
+
+err_ctx:
+  ucc_context_destroy(env->ctx);
+err_ctx_config:
+  if (NULL != ctx_config) ucc_context_config_release(ctx_config);
+err_lib:
+  ucc_finalize(env->lib);
+err_init:
+  if (NULL != lib_config) ucc_lib_config_release(lib_config);
+err_lib_config:
+  return -1;
+}
+
+// tear down the UCC environment in reverse order: team, context, library
+static inline void pico_ucc_env_finalize(pico_ucc_env_t *env)
+{
+  ucc_team_destroy(env->team);
+  ucc_context_destroy(env->ctx);
+  ucc_finalize(env->lib);
+}
+
+#endif
+
+//-----------------------------------------------------------------------------------------------
+//                                TAG INITIALIZATION HELPER
+//-----------------------------------------------------------------------------------------------
+#if defined PICO_INSTRUMENT && defined PICO_UCC
+#error "PICO_INSTRUMENT is not supported with PICO_UCC"
+#endif
+
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
 
 /**
  * @brief Run the selected operation once. Used for tag initialization.
@@ -264,7 +627,7 @@ int run_coll_once(test_routine_t test_routine, void *sbuf, void *rbuf,
 //                                MAIN PICO_COREMARK LOOP FUNCTIONS
 //-----------------------------------------------------------------------------------------------
 
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
  /**
  * @brief Test loop interface that select the appropriate collective operation
  * test loop based on the collective type and algorithm specified in the test_routine.
@@ -315,7 +678,88 @@ DEFINE_TEST_LOOP(gather, GATHER_MPI_ARGS, gather(sbuf, scount, sdtype, rbuf, rco
 DEFINE_TEST_LOOP(reduce, REDUCE_MPI_ARGS, reduce(sbuf, rbuf, count, dtype, MPI_SUM, PICO_ROOT_RANK, comm))
 DEFINE_TEST_LOOP(reduce_scatter, REDUCE_SCATTER_MPI_ARGS, reduce_scatter(sbuf, rbuf, rcounts, dtype, MPI_SUM, comm))
 DEFINE_TEST_LOOP(scatter, SCATTER_MPI_ARGS, scatter(sbuf, scount, sdtype, rbuf, rcount, rdtype, PICO_ROOT_RANK, comm))
+#elif defined PICO_UCC
+ /**
+ * @brief Test loop interface that select the appropriate collective operation
+ * test loop based on the collective type and algorithm specified in the test_routine.
+ *
+ * @return MPI_SUCCESS on success, an MPI_ERR code on error.
+ */
+int test_loop(test_routine_t test_routine, void *sbuf, void *rbuf, size_t count,
+              ucc_datatype_t dtype, MPI_Comm comm, pico_ucc_env_t ucc_env, int iter, double *times);
 
+#define DEFINE_TEST_LOOP(OP_NAME, ARGS, COLLECTIVE)                                                                           \
+  static inline int OP_NAME##_test_loop(ARGS, int iter, double *times,                                                        \
+                                        test_routine_t test_routine)                                                          \
+  {                                                                                                                           \
+    int ret = MPI_SUCCESS;                                                                                                    \
+    double start_time, end_time;                                                                                              \
+    ucc_coll_req_h coll_req;                                                                                                  \
+    ucc_status_t status;                                                                                                      \
+    for (int i = 0; i < iter; i++)                                                                                            \
+    {                                                                                                                         \
+      ucc_coll_args_t coll_conf = test_routine.function.COLLECTIVE;                                                           \
+      status = ucc_collective_init(&coll_conf, &coll_req, ucc_env.team);                                                      \
+      if (status != UCC_OK)                                                                                                   \
+      {                                                                                                                       \
+        ret = MPI_ERR_OTHER;                                                                                                  \
+        goto OP_NAME##_ucc_fail;                                                                                              \
+      }                                                                                                                       \
+      MPI_Barrier(comm);                                                                                                      \
+      start_time = MPI_Wtime();                                                                                               \
+      status = ucc_collective_post(coll_req);                                                                                 \
+      if (status != UCC_OK)                                                                                                   \
+      {                                                                                                                       \
+        ucc_collective_finalize(coll_req);                                                                                    \
+        ret = MPI_ERR_OTHER;                                                                                                  \
+        goto OP_NAME##_ucc_fail;                                                                                              \
+      }                                                                                                                       \
+      do                                                                                                                      \
+      {                                                                                                                       \
+        ucc_context_progress(ucc_env.ctx);                                                                                    \
+        status = ucc_collective_test(coll_req);                                                                               \
+      } while (status == UCC_INPROGRESS);                                                                                     \
+      end_time = MPI_Wtime();                                                                                                 \
+      if (status != UCC_OK)                                                                                                   \
+      {                                                                                                                       \
+        ucc_collective_finalize(coll_req);                                                                                    \
+        ret = MPI_ERR_OTHER;                                                                                                  \
+        goto OP_NAME##_ucc_fail;                                                                                              \
+      }                                                                                                                       \
+      status = ucc_collective_finalize(coll_req);                                                                             \
+      if (status != UCC_OK)                                                                                                   \
+      {                                                                                                                       \
+        fprintf(stderr, "Warning: " #OP_NAME " ucc_collective_finalize failed (status=%d)\n", (int)status);                   \
+      }                                                                                                                       \
+      times[i] = end_time - start_time;                                                                                       \
+      if (PICO_CORE_UNLIKELY(ret != MPI_SUCCESS))                                                                             \
+      {                                                                                                                       \
+        char error_string[MPI_MAX_ERROR_STRING];                                                                              \
+        int result_len;                                                                                                       \
+        MPI_Error_string(ret, error_string, &result_len);                                                                     \
+        fprintf(stderr, "Error: " #OP_NAME " failed: %s", error_string);                                                      \
+        return ret;                                                                                                           \
+      }                                                                                                                       \
+      PICO_INSTRUMENTATION_CALLS;                                                                                             \
+      MPI_Barrier(comm);                                                                                                      \
+    }                                                                                                                         \
+    return ret;                                                                                                               \
+    OP_NAME##_ucc_fail:                                                                                                       \
+    {                                                                                                                         \
+      fprintf(stderr, "Error: " #OP_NAME " UCC collective failed: %s (status=%d)\n", ucc_status_string(status), (int)status); \
+      return ret;                                                                                                             \
+    }                                                                                                                         \
+  }
+
+DEFINE_TEST_LOOP(allreduce, ALLREDUCE_UCC_ARGS, allreduce(sbuf, rbuf, count, dtype, UCC_OP_SUM, comm, ucc_env))
+DEFINE_TEST_LOOP(allgather, ALLGATHER_UCC_ARGS, allgather(sbuf, scount, sdtype, rbuf, rcount, rdtype, comm, ucc_env))
+DEFINE_TEST_LOOP(alltoall, ALLTOALL_UCC_ARGS, alltoall(sbuf, scount, sdtype, rbuf, rcount, rdtype, comm, ucc_env))
+DEFINE_TEST_LOOP(alltoallv, ALLTOALLV_UCC_ARGS, alltoallv(sbuf, scounts, sdispls, sdtype, rbuf, rcounts, rdispls, rdtype, comm, ucc_env))
+DEFINE_TEST_LOOP(bcast, BCAST_UCC_ARGS, bcast(buf, count, dtype, PICO_ROOT_RANK, comm, ucc_env))
+DEFINE_TEST_LOOP(gather, GATHER_UCC_ARGS, gather(sbuf, scount, sdtype, rbuf, rcount, rdtype, PICO_ROOT_RANK, comm, ucc_env))
+DEFINE_TEST_LOOP(reduce, REDUCE_UCC_ARGS, reduce(sbuf, rbuf, count, dtype, UCC_OP_SUM, PICO_ROOT_RANK, comm, ucc_env))
+DEFINE_TEST_LOOP(reduce_scatter, REDUCE_SCATTER_UCC_ARGS, reduce_scatter(sbuf, rbuf, rcounts, dtype, UCC_OP_SUM, comm, ucc_env))
+DEFINE_TEST_LOOP(scatter, SCATTER_UCC_ARGS, scatter(sbuf, scount, sdtype, rbuf, rcount, rdtype, PICO_ROOT_RANK, comm, ucc_env))
 #else
 
  /**
@@ -508,7 +952,7 @@ int split_communicator(MPI_Comm *inter_comm, MPI_Comm *intra_comm);
 //                                  I/O FUNCTIONS
 //-----------------------------------------------------------------------------------------------
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
 
 static inline int pico_name_col_width(const char **names, int n, int min_w, int max_w) {
     int w = min_w;
@@ -649,7 +1093,7 @@ void print_buffers(const void *sbuf, const void *rbuf, const void *rbuf_gt,
  *
  * @return 0 on success, -1 if the data type is unsupported.
  */
-int debug_sbuf_generator(void *sbuf, PICO_DTYPE_T dtype, size_t count,
+int debug_sbuf_generator(void *sbuf, MPI_Datatype dtype, size_t count,
                     MPI_Comm comm, test_routine_t test_routine);
 
 #endif // DEBUG

@@ -6,7 +6,7 @@
 #ifndef LIBPICO_H
 #define LIBPICO_H
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_MPI_CUDA_AWARE && !defined PICO_UCC
 #include <stdio.h>
 #endif
 
@@ -53,6 +53,26 @@
                                   ncclRedOp_t op, ncclComm_t nccl_comm, cudaStream_t stream
 #define SCATTER_NCCL_ARGS         const void *sbuf, void *rbuf, size_t count, ncclDataType_t dtype, \
                                   int root, ncclComm_t nccl_comm, cudaStream_t stream
+#endif
+
+#ifdef PICO_UCC 
+#define ALLREDUCE_UCC_ARGS        const void *sbuf, void *rbuf, size_t count, \
+                                  ucc_datatype_t dtype, ucc_reduction_op_t op, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define ALLGATHER_UCC_ARGS        const void *sbuf, size_t scount, ucc_datatype_t sdtype, \
+                                  void* rbuf, size_t rcount, ucc_datatype_t rdtype, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define ALLTOALL_UCC_ARGS         const void *sbuf, size_t scount, ucc_datatype_t sdtype, \
+                                  void *rbuf, size_t rcount, ucc_datatype_t rdtype, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define ALLTOALLV_UCC_ARGS        const void *sbuf, const ucc_count_t scounts[], const ucc_aint_t sdispls[], ucc_datatype_t sdtype, \
+                                  void *rbuf, const ucc_count_t rcounts[], const ucc_aint_t rdispls[], ucc_datatype_t rdtype, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define BCAST_UCC_ARGS            void *buf, size_t count, ucc_datatype_t dtype, int root, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define GATHER_UCC_ARGS           const void *sbuf, size_t scount, ucc_datatype_t sdtype, \
+                                  void *rbuf, size_t rcount, ucc_datatype_t rdtype, int root, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define REDUCE_UCC_ARGS           const void *sbuf, void *rbuf, size_t count, \
+                                  ucc_datatype_t dtype, ucc_reduction_op_t op, int root, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define REDUCE_SCATTER_UCC_ARGS   const void *sbuf, void *rbuf, const ucc_count_t rcounts[], \
+                                  ucc_datatype_t dtype, ucc_reduction_op_t op, MPI_Comm comm, pico_ucc_env_t ucc_env
+#define SCATTER_UCC_ARGS          const void *sbuf, size_t scount, ucc_datatype_t sdtype, \
+                                  void *rbuf, size_t rcount, ucc_datatype_t rdtype, int root, MPI_Comm comm, pico_ucc_env_t ucc_env
 #endif
 
 extern size_t bine_allreduce_segsize;
@@ -182,7 +202,7 @@ int scatter_bine(SCATTER_MPI_ARGS);
 //                        PUBLIC API Maros for instrumentation
 // ----------------------------------------------------------------------------------------------
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
 
 
 /**

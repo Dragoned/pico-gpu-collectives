@@ -11,7 +11,7 @@
 #include <stdbool.h>
 
 #include "pico_core_utils.h"
-#include "pico_mpi_nccl_mapper.h"
+#include "pico_mpi_nccl_ucc_mapper.h"
 #include "libpico.h"
 
 int main(int argc, char *argv[]) {
@@ -56,7 +56,16 @@ int main(int argc, char *argv[]) {
     goto err_hndl;
   }
 #endif // PICO_NCCL
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+
+#ifdef PICO_UCC
+  pico_ucc_env_t ucc_env;
+  if(pico_ucc_env_init(&ucc_env, comm, comm_sz, rank) == -1) {
+    line = __LINE__;
+    goto err_hndl;
+  }
+#endif
+
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
   int num_tags;
   const char **tag_names = NULL;
   double** tag_times = NULL;
@@ -156,7 +165,7 @@ int main(int argc, char *argv[]) {
   }
 #endif // DEBUG
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
   libpico_init_tags();
   #if defined PICO_MPI_CUDA_AWARE
   if (run_coll_once(test_routine, d_sbuf, d_rbuf, count, dtype, comm) != MPI_SUCCESS) {
@@ -230,16 +239,22 @@ int main(int argc, char *argv[]) {
 
   // Perform the test based on the collective type and algorithm
   // The test is performed iter times
-#ifndef PICO_NCCL
+#if !defined PICO_NCCL && !defined PICO_UCC
 #ifdef PICO_MPI_CUDA_AWARE
   if(test_loop(test_routine, d_sbuf, d_rbuf, count, loop_dtype, comm, iter, times) != 0){
 #else
   if(test_loop(test_routine, sbuf, rbuf, count, loop_dtype, comm, iter, times) != 0){
 #endif // PICO_MPI_CUDA_AWARE
+#elif defined PICO_UCC
+#ifdef PICO_MPI_CUDA_AWARE
+  if(test_loop(test_routine, d_sbuf, d_rbuf, count, loop_dtype, comm, ucc_env, iter, times) != 0){
+#else
+  if(test_loop(test_routine, sbuf, rbuf, count, loop_dtype, comm, ucc_env, iter, times) != 0){
+#endif // PICO_MPI_CUDA_AWARE
 #else
   if(test_loop(test_routine, d_sbuf, d_rbuf, count, loop_dtype, nccl_comm, stream, iter, times) != 0){
 #endif // PICO_NCCL
-    line = __LINE__;
+    line = __LINE__;  
     goto err_hndl;
   }
 
@@ -258,7 +273,7 @@ int main(int argc, char *argv[]) {
 
 #ifndef DEBUG
 
-#if !(defined PICO_INSTRUMENT && !defined PICO_NCCL)
+#if !(defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC)
   // Full and per-iteration statistics output need every rank's samples.
   if(test_routine.output_level == ALL || test_routine.output_level == STATISTICS) {
     PMPI_Gather(times, iter, MPI_DOUBLE, all_times, iter, MPI_DOUBLE, 0, comm);
@@ -366,7 +381,7 @@ int main(int argc, char *argv[]) {
     free(highest);
   }
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
   free(tag_names);
   free(tag_times[0]);
   free(tag_times);
@@ -378,6 +393,11 @@ int main(int argc, char *argv[]) {
     goto err_hndl;
   }
 #endif
+
+#ifdef PICO_UCC
+  pico_ucc_env_finalize(&ucc_env);
+#endif
+
 #if defined PICO_MPI_CUDA_AWARE || defined PICO_NCCL
   if(NULL != d_sbuf && d_sbuf != d_rbuf)    cudaFree(d_sbuf);
   if(NULL != d_rbuf)                        cudaFree(d_rbuf);
@@ -410,7 +430,7 @@ err_hndl:
   if(NULL != d_rbuf_gt)                     cudaFree(d_rbuf_gt);
 #endif // PICO_MPI_CUDA_AWARE || PICO_NCCL
 
-#if defined PICO_INSTRUMENT && !defined PICO_NCCL
+#if defined PICO_INSTRUMENT && !defined PICO_NCCL && !defined PICO_UCC
   if (NULL != tag_names) free(tag_names);
   if (NULL != tag_times) {
     if (NULL != tag_times[0]) free(tag_times[0]);

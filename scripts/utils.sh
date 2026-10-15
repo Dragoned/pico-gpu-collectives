@@ -881,9 +881,11 @@ compile_code() {
     export PICO_CORE_OBJ_DIR="$out_obj/pico_core"
     export PICO_CORE_OBJ_DIR_CUDA="$out_obj/pico_core_cuda"
     export PICO_CORE_OBJ_DIR_NCCL="$out_obj/pico_core_nccl"
+    export PICO_CORE_OBJ_DIR_UCC="$out_obj/pico_core_ucc"
     export LIB_OBJ_DIR="$out_obj/lib"
     export LIB_OBJ_DIR_CUDA="$out_obj/lib_cuda"
     export LIB_OBJ_DIR_NCCL="$out_obj/lib_nccl"
+    export LIB_OBJ_DIR_UCC="$out_obj/lib_ucc"
 
     [[ "$BEAR_COMPILE" == "yes" ]] && make_command="bear -- make all" || make_command="make all" # Used to create compile_command.json file for lsp
     [[ "$DEBUG_MODE" == "yes" ]] && make_command+=" DEBUG=1" ||  make_command+=" -s"
@@ -970,6 +972,10 @@ compile_all_libraries_tui() {
         if [[ "$lib_standard_lc" == "nccl" || "$MPI_LIB" == "NCCL" ]]; then
             need_nccl_build=1
         fi
+        local need_ucc_build=0
+        if [[ "$lib_standard_lc" == "ucc" || "$MPI_LIB" == "UCC" ]]; then
+            need_ucc_build=1
+        fi
 
         local this_instrument=0
         if [[ "$mk_instr" -eq 1 ]]; then
@@ -1015,6 +1021,9 @@ compile_all_libraries_tui() {
         elif (( need_cuda_build )); then
             mk+=" PICO_MPI_CUDA_AWARE=1"
         fi
+        if (( need_ucc_build )); then
+            mk+=" PICO_UCC=1"
+        fi
         if (( need_cuda_build )) && [[ "$gns" == "yes" ]]; then mk+=" GPU_NATIVE_SUPPORT=1"; fi
 
         if [[ "$DEBUG_MODE" == "yes" ]]; then
@@ -1035,6 +1044,7 @@ compile_all_libraries_tui() {
         [[ -f "$OUT_BIN/pico_core" ]] && export "LIB_${i}_PICO_EXEC_CPU=$OUT_BIN/pico_core" && trace_ldd "$OUT_BIN/pico_core"
         [[ -f "$OUT_BIN/pico_core_cuda" ]] && export "LIB_${i}_PICO_EXEC_GPU=$OUT_BIN/pico_core_cuda" && trace_ldd "$OUT_BIN/pico_core_cuda"
         [[ -f "$OUT_BIN/pico_core_nccl" ]] && export "LIB_${i}_PICO_EXEC_GPU=$OUT_BIN/pico_core_nccl" && trace_ldd "$OUT_BIN/pico_core_nccl"
+        [[ -f "$OUT_BIN/pico_core_ucc" ]] && export "LIB_${i}_PICO_EXEC_CPU=$OUT_BIN/pico_core_ucc" && trace_ldd "$OUT_BIN/pico_core_ucc"
 
         # Unload only this library's modules (keep general ones)
         restore_lib_context "$i" || true
@@ -1329,6 +1339,9 @@ update_algorithm() {
                 export NCCL_ALGO="$nccl_algo"
                 success "Setting NCCL_ALGO=$NCCL_ALGO for algorithm $algo..."
             fi
+            ;;
+        "UCC")
+            success "Noting to do for UCC..."
             ;;
         *)
             echo "Error: Unsupported MPI_LIB value: $MPI_LIB" >&2
